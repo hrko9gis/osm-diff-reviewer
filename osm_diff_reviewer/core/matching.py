@@ -5,8 +5,9 @@ No GUI dependency; this module is exercised directly by the unit tests.
 """
 
 import json
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 from qgis.core import Qgis, QgsGeometry, QgsSpatialIndex
 
@@ -36,9 +37,13 @@ class Candidate:
     shape_score: float | None
     attribute_score: float | None
     total_score: float | None
-    geometry: QgsGeometry
+    geometry: QgsGeometry  # reference geometry, or the OSM geometry for osm_only
     alternatives: tuple[str, ...] = ()
     attribute_details: str = "[]"
+    ref_hash: str = ""
+    osm_geometry: QgsGeometry | None = None
+    ref_attributes: Mapping[str, Any] = field(default_factory=dict)
+    osm_tags: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -200,15 +205,25 @@ def _pair_candidate(pair: _Pair, classification: str, alternatives: tuple[str, .
         geometry=pair.ref.geometry,
         alternatives=alternatives,
         attribute_details=json.dumps(list(pair.attribute_details), ensure_ascii=False),
+        ref_hash=pair.ref.content_hash,
+        osm_geometry=pair.osm.geometry,
+        ref_attributes=pair.ref.attributes,
+        osm_tags=pair.osm.tags,
     )
 
 
 def _missing_candidate(ref: ReferenceFeature) -> Candidate:
-    return Candidate(ref.key, None, None, None, MISSING, None, None, None, None, ref.geometry)
+    return Candidate(
+        ref.key, None, None, None, MISSING, None, None, None, None, ref.geometry,
+        ref_hash=ref.content_hash, ref_attributes=ref.attributes,
+    )
 
 
 def _osm_only_candidate(osm: OsmFeature) -> Candidate:
-    return Candidate(None, osm.osm_type, osm.osm_id, osm.version, OSM_ONLY, None, None, None, None, osm.geometry)
+    return Candidate(
+        None, osm.osm_type, osm.osm_id, osm.version, OSM_ONLY, None, None, None, None, osm.geometry,
+        osm_geometry=osm.geometry, osm_tags=osm.tags,
+    )
 
 
 def match(

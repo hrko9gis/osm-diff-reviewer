@@ -16,7 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from qgis.core import QgsApplication  # noqa: E402
 
-_APP = QgsApplication([], False)
+_APP = QgsApplication([], True)  # GUI enabled for widget tests (offscreen)
 _APP.initQgis()
 
 _PLUGINS_DIR = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")

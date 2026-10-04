@@ -25,6 +25,7 @@ class ReferenceFeature:
     key: str
     geometry: QgsGeometry
     attributes: Mapping[str, Any]
+    content_hash: str = ""
 
 
 @dataclass(frozen=True)
@@ -61,9 +62,14 @@ def _transformed(geometry: QgsGeometry, transform: QgsCoordinateTransform | None
 
 
 def reference_hash_key(geometry: QgsGeometry, attributes: Mapping[str, Any]) -> str:
-    """Stand-in key when the reference layer has no ID field; changes when shape or attributes change."""
+    """Hash of shape and non-null attributes.
+
+    Used to detect changed reference features, and as the key when the layer has no ID field.
+    Null attributes are ignored so that adding an empty column does not change every hash.
+    """
+    present = {name: value for name, value in attributes.items() if value is not None}
     digest = hashlib.sha1(bytes(geometry.asWkb()))
-    digest.update(json.dumps(attributes, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8"))
+    digest.update(json.dumps(present, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8"))
     return f"hash:{digest.hexdigest()}"
 
 
@@ -76,16 +82,17 @@ def reference_features_from_layer(
         if not feature.hasGeometry():
             continue
         attributes = _attributes(feature)
+        content_hash = reference_hash_key(feature.geometry(), attributes)
         key_value = attributes.get(key_field) if key_field else None
         if key_value is not None:
             key = str(key_value)
         else:
             # Identical duplicates are common in open data; number them so each keeps its own key.
-            key = reference_hash_key(feature.geometry(), attributes)
-            hash_counts[key] += 1
-            if hash_counts[key] > 1:
-                key = f"{key}#{hash_counts[key]}"
-        features.append(ReferenceFeature(key, _transformed(feature.geometry(), transform), attributes))
+            hash_counts[content_hash] += 1
+            count = hash_counts[content_hash]
+            key = content_hash if count == 1 else f"{content_hash}#{count}"
+        geometry = _transformed(feature.geometry(), transform)
+        features.append(ReferenceFeature(key, geometry, attributes, content_hash))
     return features
 
 
