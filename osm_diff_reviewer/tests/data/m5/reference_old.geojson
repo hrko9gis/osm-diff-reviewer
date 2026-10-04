@@ -1,0 +1,95 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V1",
+    "名称": "変化なし図書館"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.7,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V4",
+    "名称": "閉館した公民館"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.71658855,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V5",
+    "名称": "取り壊し済み倉庫"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72211807,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V6",
+    "名称": "旧名称会館"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72764759,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V7",
+    "名称": "旧称ホール"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.7331771,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "L1",
+    "名称": "変化なし通り"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      139.7,
+      35.68449156
+     ],
+     [
+      139.7011059,
+      35.68449156
+     ]
+    ]
+   }
+  }
+ ]
+}

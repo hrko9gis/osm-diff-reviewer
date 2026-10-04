@@ -129,12 +129,6 @@ def test_without_attribute_mappings_matching_is_spatial_only(qgis_app):
     assert candidate.total_score == candidate.shape_score
 
 
-def test_line_references_are_skipped_and_reported(qgis_app):
-    references = [ReferenceFeature("L", QgsGeometry.fromWkt("LINESTRING(0 0, 10 0)"), {})]
-    result = matching.match(references, [], Profile())
-    assert result.candidates == ()
-    assert result.skipped_reference_keys == ("L",)
-
 
 def test_reference_polygon_against_osm_node_inside(qgis_app):
     references = [_ref("A", "POLYGON((0 0, 20 0, 20 20, 0 20, 0 0))", "倉庫")]

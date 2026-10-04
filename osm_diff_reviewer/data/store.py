@@ -67,7 +67,8 @@ _SCHEMA: dict[str, tuple[int, tuple[tuple[str, int], ...]]] = {
         (("run_id", _I64), ("ref_key", _S), ("osm_type", _S), ("osm_id", _I64), ("osm_version", _I),
          ("classification", _S), ("distance_m", _R), ("shape_score", _R), ("attribute_score", _R),
          ("total_score", _R), ("alternatives", _S), ("attribute_details", _S), ("ref_hash", _S),
-         ("ref_attributes", _S), ("osm_tags", _S), ("ref_wkt", _S), ("osm_wkt", _S)),
+         ("ref_attributes", _S), ("osm_tags", _S), ("ref_wkt", _S), ("osm_wkt", _S),
+         ("change_kind", _S), ("verdict", _S), ("change_detail", _S)),
     ),
     "reviews": (
         ogr.wkbNone,
@@ -107,6 +108,9 @@ class CandidateRecord:
     point_wkt: str
     ref_wkt: str
     osm_wkt: str
+    change_kind: str = ""
+    verdict: str = ""
+    change_detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -215,9 +219,23 @@ class WorkspaceStore:
             raise StoreError(f"workspace not found: {store.path}")
         with store._dataset() as dataset:
             missing = [name for name in _SCHEMA if dataset.GetLayerByName(name) is None]
+            outdated = not missing and store._missing_columns(dataset)
         if missing:
             raise StoreError(f"{store.path} is not a workspace (missing tables: {', '.join(missing)})")
+        if outdated:
+            try:
+                cls.create(path)  # adds the columns of newer plugin versions
+            except StoreError:
+                pass  # read-only file: still readable, the new columns read as empty
         return store
+
+    @staticmethod
+    def _missing_columns(dataset: ogr.DataSource) -> bool:
+        for name, (_, fields) in _SCHEMA.items():
+            definition = dataset.GetLayerByName(name).GetLayerDefn()
+            if any(definition.GetFieldIndex(field_name) < 0 for field_name, _ in fields):
+                return True
+        return False
 
     @staticmethod
     def _ensure_schema(dataset: ogr.DataSource) -> None:
@@ -436,6 +454,9 @@ class WorkspaceStore:
             status=prior.status if prior else review.UNREVIEWED,
             note=prior.note if prior else "",
             needs_recheck=prior.needs_recheck if prior else False,
+            change_kind=values.get("change_kind") or "",
+            verdict=values.get("verdict") or "",
+            change_detail=values.get("change_detail") or "",
         )
 
     # ----- reviews -----------------------------------------------------------------

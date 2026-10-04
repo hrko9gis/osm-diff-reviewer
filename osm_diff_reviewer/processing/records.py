@@ -21,6 +21,9 @@ _OUTPUT_FIELDS = (
     ("alternatives", QMetaType.Type.QString),
     ("attribute_details", QMetaType.Type.QString),
     ("ref_hash", QMetaType.Type.QString),
+    ("change_kind", QMetaType.Type.QString),
+    ("verdict", QMetaType.Type.QString),
+    ("change_detail", QMetaType.Type.QString),
 )
 
 
@@ -57,6 +60,9 @@ def _attribute_values(candidate: Candidate) -> list:
         ";".join(candidate.alternatives),
         candidate.attribute_details,
         candidate.ref_hash,
+        candidate.change_kind,
+        candidate.verdict,
+        candidate.change_detail,
     ]
 
 
@@ -90,4 +96,7 @@ def candidate_record(candidate: Candidate, to_wgs84: QgsCoordinateTransform) -> 
         point_wkt=point.asWkt(7),
         ref_wkt=reference.asWkt(7) if reference else "",
         osm_wkt=osm.asWkt(7) if osm else "",
+        change_kind=candidate.change_kind,
+        verdict=candidate.verdict,
+        change_detail=candidate.change_detail,
     )

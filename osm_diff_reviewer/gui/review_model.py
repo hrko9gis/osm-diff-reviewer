@@ -2,15 +2,16 @@
 
 from qgis.PyQt.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 
-from ..core import matching, review
+from ..core import matching, review, version_diff
 from ..core.review import ReviewRow
 from ..i18n import tr
 
-COLUMNS = ("ref_key", "osm", "classification", "total_score", "status", "needs_recheck", "note")
+COLUMNS = ("ref_key", "osm", "classification", "change", "total_score", "status", "needs_recheck", "note")
 _HEADERS = {
     "ref_key": "Reference key",
     "osm": "OSM",
     "classification": "Classification",
+    "change": "Version change",
     "total_score": "Score",
     "status": "Status",
     "needs_recheck": "Recheck",
@@ -24,7 +25,30 @@ _CLASSIFICATION_LABELS = {
     matching.AMBIGUOUS: "Ambiguous",
     matching.OSM_ONLY: "OSM only",
 }
+_CHANGE_LABELS = {
+    version_diff.ADDED: "Added",
+    version_diff.REMOVED: "Removed",
+    version_diff.CHANGED: "Changed",
+}
+_VERDICT_LABELS = {
+    version_diff.IN_OSM: "already in OSM",
+    version_diff.NOT_IN_OSM: "not in OSM",
+    version_diff.STILL_IN_OSM: "still in OSM",
+    version_diff.GONE_FROM_OSM: "gone from OSM",
+    version_diff.OSM_HAS_OLD: "OSM has the old state",
+    version_diff.OSM_REFLECTS_NEW: "OSM already updated",
+    version_diff.UNDECIDED: "undecided",
+    version_diff.VERDICT_AMBIGUOUS: "ambiguous",
+}
 SORT_ROLE = Qt.ItemDataRole.UserRole
+
+
+def change_label(row: ReviewRow) -> str:
+    if not row.change_kind:
+        return ""
+    kind = tr(_CHANGE_LABELS.get(row.change_kind, row.change_kind))
+    verdict = tr(_VERDICT_LABELS.get(row.verdict, row.verdict))
+    return f"{kind}: {verdict}" if verdict else kind
 
 
 def classification_label(code: str) -> str:
@@ -45,6 +69,8 @@ def _display(row: ReviewRow, column: str) -> str:
         return osm_label(row)
     if column == "classification":
         return classification_label(row.classification)
+    if column == "change":
+        return change_label(row)
     if column == "total_score":
         return "" if row.total_score is None else f"{row.total_score:.2f}"
     if column == "status":
@@ -140,8 +166,8 @@ class ReviewFilterProxy(QSortFilterProxyModel):
         if self._classification is not None:
             if row.classification != self._classification:
                 return False
-        elif row.classification == matching.MATCH and not self._show_matches:
-            return False
+        elif row.classification == matching.MATCH and not row.change_kind and not self._show_matches:
+            return False  # rows of a version-diff run are the change set itself: never hidden as matches
         if self._status is not None:
             if row.status != self._status:
                 return False

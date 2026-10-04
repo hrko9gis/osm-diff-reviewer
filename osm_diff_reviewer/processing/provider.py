@@ -1,7 +1,7 @@
 from qgis.core import QgsProcessingProvider
 from qgis.PyQt.QtCore import QCoreApplication
 
-from .algorithms import MatchAlgorithm
+from .algorithms import MatchAlgorithm, VersionDiffAlgorithm
 
 
 class OsmDiffReviewerProvider(QgsProcessingProvider):
@@ -13,3 +13,4 @@ class OsmDiffReviewerProvider(QgsProcessingProvider):
 
     def loadAlgorithms(self) -> None:  # noqa: N802 - QGIS API
         self.addAlgorithm(MatchAlgorithm())
+        self.addAlgorithm(VersionDiffAlgorithm())

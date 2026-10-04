@@ -203,3 +203,26 @@ def test_concurrent_use_from_threads_is_safe(store):
         thread.join()
     assert errors == []
     assert {r.status for r in store.load_rows(run_id)} == {review.ON_HOLD}
+
+
+def test_read_only_workspace_can_still_be_opened(store):
+    import os
+    import stat
+
+    run_id = store.record_run("src", "{}", [_record()])
+    os.chmod(store.path, stat.S_IREAD)
+    try:
+        reopened = WorkspaceStore.open(store.path)
+        assert [r.ref_key for r in reopened.load_rows(run_id)] == ["R1"]
+    finally:
+        os.chmod(store.path, stat.S_IREAD | stat.S_IWRITE)
+
+
+def test_open_adds_columns_missing_from_older_workspaces(store):
+    dataset = ogr.Open(str(store.path), update=1)
+    layer = dataset.GetLayerByName("candidates")
+    layer.DeleteField(layer.GetLayerDefn().GetFieldIndex("verdict"))
+    dataset = None
+    WorkspaceStore.open(store.path)
+    dataset = ogr.Open(str(store.path))
+    assert dataset.GetLayerByName("candidates").GetLayerDefn().GetFieldIndex("verdict") >= 0

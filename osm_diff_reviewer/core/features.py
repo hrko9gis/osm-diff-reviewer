@@ -50,8 +50,14 @@ def _python_value(value: Any) -> Any:
     return value
 
 
-def _attributes(feature: QgsFeature) -> dict[str, Any]:
-    return {name: _python_value(feature[name]) for name in feature.fields().names()}
+def _attributes(feature: QgsFeature, skip: frozenset[str] = frozenset()) -> dict[str, Any]:
+    return {name: _python_value(feature[name]) for name in feature.fields().names() if name not in skip}
+
+
+def _row_id_fields(layer: QgsVectorLayer) -> frozenset[str]:
+    """Provider primary keys such as the GeoPackage ``fid``: they change on export or reordering."""
+    fields = layer.fields()
+    return frozenset(fields.at(i).name() for i in layer.primaryKeyAttributes())
 
 
 def _transformed(geometry: QgsGeometry, transform: QgsCoordinateTransform | None) -> QgsGeometry:
@@ -78,12 +84,13 @@ def reference_features_from_layer(
 ) -> list[ReferenceFeature]:
     features = []
     hash_counts: Counter[str] = Counter()
+    row_ids = _row_id_fields(layer)
     for feature in layer.getFeatures():
         if not feature.hasGeometry():
             continue
-        attributes = _attributes(feature)
+        attributes = _attributes(feature, row_ids)
         content_hash = reference_hash_key(feature.geometry(), attributes)
-        key_value = attributes.get(key_field) if key_field else None
+        key_value = _python_value(feature[key_field]) if key_field else None
         if key_value is not None:
             key = str(key_value)
         else:

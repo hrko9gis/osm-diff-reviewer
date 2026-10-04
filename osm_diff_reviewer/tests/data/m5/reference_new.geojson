@@ -1,0 +1,115 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V1",
+    "名称": "変化なし図書館"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.7,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V2",
+    "名称": "新設保育園"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.70552952,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V3",
+    "名称": "新設診療所"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.71105903,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V6",
+    "名称": "新名称会館"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72764759,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "V7",
+    "名称": "新称ホール"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.7331771,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "L1",
+    "名称": "変化なし通り"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      139.7,
+      35.68449156
+     ],
+     [
+      139.7011059,
+      35.68449156
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "L2",
+    "名称": "新設通り"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      139.71105903,
+      35.68449156
+     ],
+     [
+      139.71216494,
+      35.68449156
+     ]
+    ]
+   }
+  }
+ ]
+}

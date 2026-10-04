@@ -35,7 +35,7 @@ from .background import BackgroundRunner
 from .license_dialog import LicenseDialog
 from .maproulette_dialog import MapRouletteDialog
 from .settings_dialog import SettingsDialog
-from .review_model import ReviewFilterProxy, ReviewTableModel, classification_label, osm_label
+from .review_model import ReviewFilterProxy, ReviewTableModel, change_label, classification_label, osm_label
 
 PROJECT_SCOPE = "OsmDiffReviewer"
 PROJECT_WORKSPACE_KEY = "workspace"
@@ -378,6 +378,8 @@ class ReviewDock(QgsDockWidget):
     @staticmethod
     def _summary(row: ReviewRow) -> str:
         parts = [row.ref_key or "—", "⇔", osm_label(row) or "—", "·", classification_label(row.classification)]
+        if row.change_kind:
+            parts.append(f"· {change_label(row)}")
         if row.total_score is not None:
             parts.append(f"· {tr('score')} {row.total_score:.2f}")
         if row.distance_m is not None:

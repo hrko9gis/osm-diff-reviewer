@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 PROFILE_VERSION = 1
-GEOMETRY_KINDS = ("point", "polygon")
+GEOMETRY_KINDS = ("point", "polygon", "line")
 COMPARISON_METHODS = ("exact", "normalized", "similarity")
 
 
@@ -29,8 +29,9 @@ def _finite(value: Any, name: str) -> float:
 @dataclass(frozen=True)
 class Thresholds:
     search_radius_m: float
-    max_distance_m: float
-    min_iou: float = 0.6
+    max_distance_m: float  # points: distance; polygons: centroid distance (info only); lines: Hausdorff
+    min_iou: float = 0.6  # polygons: IoU; lines: buffer coverage
+    buffer_m: float = 5.0  # lines only: buffer width used to measure coverage
 
     def validate(self, kind: str) -> None:
         if self.search_radius_m <= 0 or self.max_distance_m < 0:
@@ -39,6 +40,8 @@ class Thresholds:
             raise ProfileError(f"{kind}: max_distance_m must not exceed search_radius_m")
         if not 0 < self.min_iou <= 1:
             raise ProfileError(f"{kind}: min_iou must be in (0, 1]")
+        if self.buffer_m <= 0:
+            raise ProfileError(f"{kind}: buffer_m must be positive")
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,7 @@ class AttributeMapping:
 DEFAULT_THRESHOLDS = {
     "point": Thresholds(search_radius_m=50.0, max_distance_m=15.0),
     "polygon": Thresholds(search_radius_m=30.0, max_distance_m=10.0, min_iou=0.6),
+    "line": Thresholds(search_radius_m=20.0, max_distance_m=10.0, min_iou=0.6, buffer_m=5.0),
 }
 
 

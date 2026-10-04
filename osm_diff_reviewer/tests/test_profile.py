@@ -49,7 +49,7 @@ def test_partial_threshold_override_keeps_other_defaults():
         {"thresholds": {"point": {"search_radius_m": -1}}},
         {"thresholds": {"polygon": {"min_iou": 1.5}}},
         {"thresholds": {"point": {"search_radius_m": 10, "max_distance_m": 20}}},
-        {"thresholds": {"line": {}}},
+        {"thresholds": {"area": {}}},
         {"ambiguity_margin": "big"},
         {"version": 99},
     ],

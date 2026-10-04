@@ -78,6 +78,9 @@ class ReviewRow:
     status: str = UNREVIEWED
     note: str = ""
     needs_recheck: bool = False
+    change_kind: str = ""  # version-diff runs only
+    verdict: str = ""
+    change_detail: str = ""
 
     @property
     def key(self) -> ReviewKey:
