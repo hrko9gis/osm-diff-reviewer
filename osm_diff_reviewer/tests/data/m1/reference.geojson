@@ -1,0 +1,215 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R1",
+    "名称": "中央図書館",
+    "expected": "match"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.7,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R2",
+    "名称": "東公園",
+    "expected": "missing"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.70552952,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R3",
+    "名称": "西保育園",
+    "expected": "geometry_diff"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.71105903,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R4",
+    "名称": "北公民館",
+    "expected": "attribute_diff"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.71658855,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R5",
+    "名称": "株式会社テスト商店",
+    "expected": "match"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72211807,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R6",
+    "名称": "南診療所",
+    "expected": "ambiguous"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72764759,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R7",
+    "名称": "市民体育館",
+    "expected": "match"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.7331771,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R8",
+    "名称": "第一倉庫",
+    "expected": "match"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       139.69988941,
+       35.68440172
+      ],
+      [
+       139.70011059,
+       35.68440172
+      ],
+      [
+       139.70011059,
+       35.68458139
+      ],
+      [
+       139.69988941,
+       35.68458139
+      ],
+      [
+       139.69988941,
+       35.68440172
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R9",
+    "名称": "第二倉庫",
+    "expected": "geometry_diff"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       139.70541893,
+       35.68440172
+      ],
+      [
+       139.70564011,
+       35.68440172
+      ],
+      [
+       139.70564011,
+       35.68458139
+      ],
+      [
+       139.70541893,
+       35.68458139
+      ],
+      [
+       139.70541893,
+       35.68440172
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ref_id": "R10",
+    "名称": "第三倉庫",
+    "expected": "missing"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       139.71094844,
+       35.68440172
+      ],
+      [
+       139.71116962,
+       35.68440172
+      ],
+      [
+       139.71116962,
+       35.68458139
+      ],
+      [
+       139.71094844,
+       35.68458139
+      ],
+      [
+       139.71094844,
+       35.68440172
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

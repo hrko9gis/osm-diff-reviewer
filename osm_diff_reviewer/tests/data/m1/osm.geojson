@@ -1,0 +1,226 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 1,
+    "osm_version": 3,
+    "name": "中央図書館",
+    "amenity": "library"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.70003318,
+     35.68003593
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 3,
+    "osm_version": 1,
+    "name": "西保育園"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.71139081,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 4,
+    "osm_version": 2,
+    "name": "北地区センター"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.71662173,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 5,
+    "osm_version": 1,
+    "name": "ﾃｽﾄ商店"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72214019,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 61,
+    "osm_version": 1,
+    "name": "南診療所"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72769182,
+     35.68
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 62,
+    "osm_version": 1,
+    "name": "南診療所"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72764759,
+     35.68004492
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "way",
+    "osm_id": 7,
+    "osm_version": 5,
+    "name": "市民体育館"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       139.73295592,
+       35.67982034
+      ],
+      [
+       139.73339828,
+       35.67982034
+      ],
+      [
+       139.73339828,
+       35.68017966
+      ],
+      [
+       139.73295592,
+       35.68017966
+      ],
+      [
+       139.73295592,
+       35.67982034
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "way",
+    "osm_id": 8,
+    "osm_version": 1,
+    "name": "第一倉庫"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       139.69990047,
+       35.68440172
+      ],
+      [
+       139.70012165,
+       35.68440172
+      ],
+      [
+       139.70012165,
+       35.68458139
+      ],
+      [
+       139.69990047,
+       35.68458139
+      ],
+      [
+       139.69990047,
+       35.68440172
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "way",
+    "osm_id": 9,
+    "osm_version": 1,
+    "name": "第二倉庫"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       139.70541893,
+       35.68440172
+      ],
+      [
+       139.70564011,
+       35.68440172
+      ],
+      [
+       139.70564011,
+       35.68449156
+      ],
+      [
+       139.70541893,
+       35.68449156
+      ],
+      [
+       139.70541893,
+       35.68440172
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "osm_type": "node",
+    "osm_id": 11,
+    "osm_version": 1,
+    "name": "孤立売店"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     139.72211807,
+     35.68449156
+    ]
+   }
+  }
+ ]
+}

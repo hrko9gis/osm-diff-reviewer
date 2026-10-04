@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Minimum supported LTR (Qt5) and the current release line (QGIS 4 / Qt6).
+        qgis_image: ["qgis/qgis:release-3_40", "qgis/qgis:latest"]
+    container:
+      image: ${{ matrix.qgis_image }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install test dependencies
+        run: python3 -m pip install --target .devdeps pytest pytest-cov
+      - name: Run tests
+        run: python3 scripts/pytest_runner.py --cov=osm_diff_reviewer --cov-report=term-missing --cov-fail-under=80

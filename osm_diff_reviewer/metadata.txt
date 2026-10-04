@@ -1,0 +1,18 @@
+[general]
+name=OSM Diff Reviewer
+qgisMinimumVersion=3.40
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Compare reference data with OpenStreetMap and review the differences as update candidates.
+about=Matches a reference layer (e.g. municipal open data) against OpenStreetMap data, classifies the differences (missing, geometry difference, attribute difference, ambiguous, OSM only) and keeps review decisions across runs. The plugin never edits OSM: candidates are handed over to JOSM or MapRoulette. Importing external data into OSM may fall under the OSM Import Guidelines; check the licence of your reference data and consult your local community first.
+version=0.1.0
+author=QGIS Ninja
+email=hrko9gis@gmail.com
+repository=https://github.com/hrko9gis/osm-diff-reviewer
+tracker=https://github.com/hrko9gis/osm-diff-reviewer/issues
+homepage=https://github.com/hrko9gis/osm-diff-reviewer
+tags=openstreetmap,osm,conflation,josm,maproulette,quality assurance
+category=Vector
+experimental=True
+hasProcessingProvider=yes
+changelog=0.1.0 - Matching of points and polygons as a Processing algorithm.
