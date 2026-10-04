@@ -167,3 +167,39 @@ def test_store_works_without_dataset_close(store, monkeypatch):
     monkeypatch.setattr(store_module, "_HAS_CLOSE", False)
     store.record_run("src", "{}", [_record()])
     assert store.latest_run_id("src") is not None
+
+
+def test_mr_task_records(store):
+    first, second = ReviewKey.of("src", "R1", "node", 1), ReviewKey.of("src", "R2", None, None)
+    store.record_challenge("src", 77, [first, second])
+    assert store.challenge_ids("src") == [77]
+    assert store.mr_task_states(77) == {first: (None, None), second: (None, None)}
+    store.update_mr_task(77, first, 1001, 1)
+    store.update_mr_task(77, ReviewKey.of("src", "R9", None, None), 1009, 0)  # task we did not record
+    states = store.mr_task_states(77)
+    assert states[first] == (1001, 1) and states[ReviewKey.of("src", "R9", None, None)] == (1009, 0)
+    assert store.challenge_ids("other") == []
+
+
+def test_concurrent_use_from_threads_is_safe(store):
+    import threading
+
+    run_id = store.record_run("src", "{}", [_record(f"R{i}") for i in range(20)])
+    rows = store.load_rows(run_id)
+    errors = []
+
+    def work(part):
+        try:
+            for row in part:
+                store.save_review(row, review.ON_HOLD, "")
+                store.load_rows(run_id)
+        except Exception as error:  # noqa: BLE001 - collected for the assertion
+            errors.append(error)
+
+    threads = [threading.Thread(target=work, args=(rows[i::4],)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    assert {r.status for r in store.load_rows(run_id)} == {review.ON_HOLD}

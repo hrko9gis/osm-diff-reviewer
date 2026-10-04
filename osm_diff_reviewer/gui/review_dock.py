@@ -4,7 +4,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from qgis.core import QgsApplication, QgsProject, QgsTask
+from qgis.core import QgsProject
 from qgis.gui import QgsDockWidget, QgsFileWidget
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QBrush, QColor
@@ -31,7 +31,9 @@ from ..data.http import LocalHttpClient, QgisHttpClient
 from ..data.store import StoreError, WorkspaceStore
 from ..i18n import tr
 from . import handover, highlight
+from .background import BackgroundRunner
 from .license_dialog import LicenseDialog
+from .maproulette_dialog import MapRouletteDialog
 from .settings_dialog import SettingsDialog
 from .review_model import ReviewFilterProxy, ReviewTableModel, classification_label, osm_label
 
@@ -65,7 +67,7 @@ class ReviewDock(QgsDockWidget):
         self._cleaned_up = False
         self.http = QgisHttpClient()  # Overpass: follows the QGIS proxy settings
         self.josm_http = LocalHttpClient()  # JOSM on this computer: never through a proxy
-        self._task: QgsTask | None = None
+        self.runner = BackgroundRunner(lambda busy: self._update_buttons(), self._message)
         self.model =ReviewTableModel(self)
         self.proxy = ReviewFilterProxy(self)
         self.proxy.setSourceModel(self.model)
@@ -84,6 +86,7 @@ class ReviewDock(QgsDockWidget):
         if self._cleaned_up:
             return
         self._cleaned_up = True
+        self.runner.close()
         project = QgsProject.instance()
         project.readProject.disconnect(self.on_project_read)
         project.cleared.disconnect(self.on_project_cleared)
@@ -187,6 +190,9 @@ class ReviewDock(QgsDockWidget):
         self.send_reference_check.setToolTip(
             tr("Never uploaded; needs a confirmed licence of the reference data")
         )
+        self.maproulette_button = QPushButton(tr("MapRoulette…"))
+        self.maproulette_button.setToolTip(tr("Export or send the candidates shown in the list as MapRoulette tasks"))
+        self.maproulette_button.clicked.connect(self.open_maproulette)
         self.settings_button = QPushButton(tr("Settings…"))
         self.settings_button.clicked.connect(lambda: SettingsDialog(self).exec())
         self.message_label = QLabel()
@@ -204,6 +210,7 @@ class ReviewDock(QgsDockWidget):
         source_row.addWidget(QLabel(tr("Reference source")))
         source_row.addWidget(self.source_combo, 1)
         source_row.addWidget(self.license_button)
+        source_row.addWidget(self.maproulette_button)
         filter_row = QHBoxLayout()
         for widget in (self.classification_filter, self.status_filter):
             filter_row.addWidget(widget, 1)
@@ -382,31 +389,25 @@ class ReviewDock(QgsDockWidget):
         return " ".join(parts)
 
     def task_running(self) -> bool:
-        return self._task is not None
+        return self.runner.running()
 
-    def _run_in_background(self, description: str, action) -> None:
-        """Run a network action off the GUI thread; its returned message is shown when done."""
-        if self.task_running():
+    def visible_rows(self) -> list[ReviewRow]:
+        return [self.proxy.row_at(self.proxy.index(i, 0)) for i in range(self.proxy.rowCount())]
+
+    def open_maproulette(self) -> None:
+        source_name = self.source_combo.currentText()
+        if self.store is None or not source_name:
+            self._message(tr("Run matching first."))
             return
-
-        def finished(exception, result=None) -> None:
-            if self._cleaned_up:
-                return
-            self._task = None
-            self._update_buttons()
-            self._message(str(exception) if exception else result or "")
-
-        self._task = QgsTask.fromFunction(description, lambda task: action(), on_finished=finished)
-        self._update_buttons()
-        self._message(tr("Working…"))
-        QgsApplication.taskManager().addTask(self._task)
+        MapRouletteDialog(self.store, source_name, self.visible_rows(), self).exec()
+        self.reload()
 
     def open_in_josm(self) -> None:
         row = self.current_row()
         if row is None or self.store is None:
             return
         store, http, send = self.store, self.josm_http, self.send_reference_check.isChecked()
-        self._run_in_background(tr("Open in JOSM"), lambda: handover.open_in_josm(row, store, http, send))
+        self.runner.run(tr("Open in JOSM"), lambda: handover.open_in_josm(row, store, http, send))
 
     def next_and_open(self) -> None:
         before = self.table.currentIndex().row()
@@ -418,7 +419,7 @@ class ReviewDock(QgsDockWidget):
         row = self.current_row()
         if row is not None:
             http = self.http
-            self._run_in_background(tr("Check in OSM"), lambda: handover.check_in_osm(row, http))
+            self.runner.run(tr("Check in OSM"), lambda: handover.check_in_osm(row, http))
 
     def _set_editing_enabled(self, enabled: bool) -> None:
         for widget in (self.status_combo, self.note_edit, self.save_button):

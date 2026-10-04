@@ -39,6 +39,10 @@ class HttpClient(Protocol):
 
     def post_form(self, url: str, fields: dict[str, str]) -> HttpResponse: ...
 
+    def send(
+        self, method: str, url: str, body: bytes | None = None, headers: dict[str, str] | None = None
+    ) -> HttpResponse: ...
+
 
 @lru_cache(maxsize=1)
 def user_agent() -> str:
@@ -73,10 +77,24 @@ class QgisHttpClient:
         return self._response(blocking, error)
 
     def post_form(self, url: str, fields: dict[str, str]) -> HttpResponse:
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        return self.send("POST", url, urlencode(fields).encode("utf-8"), headers)
+
+    def send(
+        self, method: str, url: str, body: bytes | None = None, headers: dict[str, str] | None = None
+    ) -> HttpResponse:
         request = self._request(url)
-        request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/x-www-form-urlencoded")
+        for name, value in (headers or {}).items():
+            request.setRawHeader(name.encode("utf-8"), value.encode("utf-8"))
         blocking = QgsBlockingNetworkRequest()
-        error = blocking.post(request, urlencode(fields).encode("utf-8"), True)
+        if method == "GET":
+            error = blocking.get(request, True)
+        elif method == "POST":
+            error = blocking.post(request, body or b"", True)
+        elif method == "PUT":
+            error = blocking.put(request, body or b"")
+        else:
+            raise ValueError(f"unsupported HTTP method: {method}")
         return self._response(blocking, error)
 
 
@@ -107,3 +125,8 @@ class LocalHttpClient:
 
     def post_form(self, url: str, fields: dict[str, str]) -> HttpResponse:
         return self._send(Request(url, data=urlencode(fields).encode("utf-8")))
+
+    def send(
+        self, method: str, url: str, body: bytes | None = None, headers: dict[str, str] | None = None
+    ) -> HttpResponse:
+        return self._send(Request(url, data=body, headers=headers or {}, method=method))

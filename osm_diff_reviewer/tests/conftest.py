@@ -16,6 +16,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import tempfile  # noqa: E402
 
+# A throwaway QGIS profile: settings and the authentication database (API keys) used by
+# tests never touch the developer's real profile.
+TEST_PROFILE_DIR = tempfile.mkdtemp(prefix="osm_diff_reviewer_profile_")
+os.environ["QGIS_CUSTOM_CONFIG_PATH"] = TEST_PROFILE_DIR
+
 from qgis.core import QgsApplication  # noqa: E402
 from qgis.PyQt.QtCore import QCoreApplication, QSettings  # noqa: E402
 
@@ -46,3 +51,27 @@ def qgis_app():
 @pytest.fixture(scope="session")
 def m1_dir():
     return DATA_DIR / "m1"
+
+
+@pytest.fixture(scope="session")
+def auth_manager(qgis_app):
+    """QGIS auth database of the throwaway profile, unlocked with a test master password."""
+    from qgis.core import QgsApplication
+
+    settings_dir = QgsApplication.qgisSettingsDirPath().replace("\\", "/")
+    assert settings_dir.startswith(TEST_PROFILE_DIR.replace("\\", "/")), "refusing to touch a real profile"
+    manager = QgsApplication.authManager()
+    if not manager.masterPasswordIsSet():
+        assert manager.setMasterPassword("test-master-password", True)
+    return manager
+
+
+def store_auth_config(manager, method: str, values: dict) -> str:
+    from qgis.core import QgsAuthMethodConfig
+
+    config = QgsAuthMethodConfig(method)
+    config.setName(f"test {method}")
+    for key, value in values.items():
+        config.setConfig(key, value)
+    assert manager.storeAuthenticationConfig(config)[0]
+    return config.id()

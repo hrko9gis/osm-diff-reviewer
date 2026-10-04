@@ -6,6 +6,7 @@ operation so that QGIS can read the same file in between.
 """
 
 import json
+import threading
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -17,6 +18,10 @@ from osgeo import ogr, osr
 from ..core import review
 from ..core.review import PriorReview, ReviewKey, ReviewRow
 from .license_gate import LICENSE_STATUSES, LICENSE_UNCONFIRMED, ReferenceSource
+
+# One workspace operation at a time across threads (GUI and QgsTask workers): SQLite writers
+# would otherwise hit "database is locked", and the OGR exception mode is process-wide.
+_LOCK = threading.RLock()
 
 # DataSource.Close() needs GDAL 3.8; QGIS 3.40 packages may ship an older GDAL.
 _HAS_CLOSE = hasattr(ogr.DataSource, "Close")
@@ -187,7 +192,7 @@ class WorkspaceStore:
     def create(cls, path: str | Path) -> "WorkspaceStore":
         """Create the workspace, or add missing tables to an existing GeoPackage."""
         store = cls(path)
-        with _ogr_exceptions():
+        with _LOCK, _ogr_exceptions():
             try:
                 if store.path.exists():
                     dataset = ogr.Open(str(store.path), update=1)
@@ -233,7 +238,7 @@ class WorkspaceStore:
 
     @contextmanager
     def _dataset(self, update: bool = False) -> Iterator[ogr.DataSource]:
-        with _ogr_exceptions():
+        with _LOCK, _ogr_exceptions():
             try:
                 dataset = ogr.Open(str(self.path), update=1 if update else 0)
             except RuntimeError as error:
@@ -447,6 +452,37 @@ class WorkspaceStore:
         with self._dataset() as dataset:
             feature = next(_features(dataset.GetLayerByName("reviews"), _where(**key._asdict())), None)
             return _prior(_values(feature)) if feature else None
+
+    # ----- MapRoulette tasks -------------------------------------------------------
+
+    def record_challenge(self, source_name: str, challenge_id: int, keys: Sequence[ReviewKey]) -> None:
+        with self._transaction() as dataset:
+            layer = dataset.GetLayerByName("mr_tasks")
+            for key in keys:
+                feature = ogr.Feature(layer.GetLayerDefn())
+                _set_values(feature, {**key._asdict(), "source_name": source_name, "challenge_id": challenge_id})
+                layer.CreateFeature(feature)
+
+    def challenge_ids(self, source_name: str) -> list[int]:
+        with self._dataset() as dataset:
+            features = _features(dataset.GetLayerByName("mr_tasks"), _where(source_name=source_name))
+            return sorted({_values(f)["challenge_id"] for f in features})
+
+    def mr_task_states(self, challenge_id: int) -> dict[ReviewKey, tuple[int | None, int | None]]:
+        """Task id and status at the last sync, per candidate (None before the first sync)."""
+        with self._dataset() as dataset:
+            rows = [_values(f) for f in _features(dataset.GetLayerByName("mr_tasks"), _where(challenge_id=challenge_id))]
+        return {_review_key(v): (v["task_id"], v["last_status"]) for v in rows}
+
+    def update_mr_task(self, challenge_id: int, key: ReviewKey, task_id: int, status: int | None) -> None:
+        values = {**key._asdict(), "challenge_id": challenge_id, "task_id": task_id, "last_status": status,
+                  "synced_at": _now()}
+        with self._transaction() as dataset:
+            layer = dataset.GetLayerByName("mr_tasks")
+            existing = next(_features(layer, _where(challenge_id=challenge_id, **key._asdict())), None)
+            feature = existing or ogr.Feature(layer.GetLayerDefn())
+            _set_values(feature, values)
+            (layer.SetFeature if existing else layer.CreateFeature)(feature)
 
     def save_review(self, row: ReviewRow, status: str, note: str) -> None:
         """Record a decision against the current state of both sides; clears the recheck flag."""

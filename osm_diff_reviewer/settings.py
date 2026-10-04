@@ -4,6 +4,7 @@ from qgis.core import QgsSettings
 
 DEFAULT_JOSM_URL = "http://127.0.0.1:8111"
 DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+DEFAULT_MAPROULETTE_URL = "https://maproulette.org/api/v2"
 _PREFIX = "OsmDiffReviewer/"
 
 
@@ -30,3 +31,20 @@ def overpass_url() -> str:
 
 def set_overpass_url(url: str) -> None:
     _write("overpass_url", url)
+
+
+def maproulette_url() -> str:
+    return _read("maproulette_url", DEFAULT_MAPROULETTE_URL)
+
+
+def set_maproulette_url(url: str) -> None:
+    _write("maproulette_url", url)
+
+
+def maproulette_authcfg() -> str:
+    """Id of the QGIS authentication configuration holding the API key (never the key itself)."""
+    return _read("maproulette_authcfg", "")
+
+
+def set_maproulette_authcfg(authcfg: str) -> None:
+    _write("maproulette_authcfg", authcfg)
