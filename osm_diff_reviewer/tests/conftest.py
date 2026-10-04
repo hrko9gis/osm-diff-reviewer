@@ -14,10 +14,20 @@ if str(REPO_ROOT) not in sys.path:
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import tempfile  # noqa: E402
+
 from qgis.core import QgsApplication  # noqa: E402
+from qgis.PyQt.QtCore import QCoreApplication, QSettings  # noqa: E402
 
 _APP = QgsApplication([], True)  # GUI enabled for widget tests (offscreen)
 _APP.initQgis()
+
+# Keep QgsSettings written by tests away from the developer's real QGIS profile.
+_SETTINGS_DIR = tempfile.mkdtemp(prefix="osm_diff_reviewer_settings_")
+QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, _SETTINGS_DIR)
+QCoreApplication.setOrganizationName("OsmDiffReviewerTests")
+QCoreApplication.setApplicationName("tests")
 
 _PLUGINS_DIR = os.path.join(QgsApplication.pkgDataPath(), "python", "plugins")
 if _PLUGINS_DIR not in sys.path:

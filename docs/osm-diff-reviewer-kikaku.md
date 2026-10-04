@@ -110,7 +110,7 @@ MapRoulette への掲載は参照データの再配布にあたり得るため�
 
 - 対応バージョン:QGIS 3.40 LTR 以上および QGIS 4 系(案。12 で確定)。Qt のインポートは `qgis.PyQt` 経由に統一し、Qt5 / Qt6 の両方で動くようにする。
 - 依存:QGIS 同梱の Python ライブラリのみ。追加の pip 依存を持たない。
-- 通信:`QgsNetworkAccessManager` / `QgsBlockingNetworkRequest` を使い、QGIS のプロキシ設定に従う。Overpass のエンドポイントは設定可能にし、User-Agent を明示する。
+- 通信:`QgsNetworkAccessManager` / `QgsBlockingNetworkRequest` を使い、QGIS のプロキシ設定に従う。Overpass のエンドポイントは設定可能にする。User-Agent は QGIS が自身の値(`Mozilla/5.0 QGIS/…`)で上書きするため、プラグインの識別は Referer ヘッダ(リポジトリ URL)で示す(M3 で確認)。例外として、JOSM リモート制御(このコンピュータ上)への通信は QGIS のプロキシ設定を通さず直接送る。QGIS 3 系では 127.0.0.1 宛てでもプロキシ経由になり、接続に失敗するうえ参照データが外部に出るため(M3 で確認)。JOSM・Overpass への通信はバックグラウンドで行い、QGIS の画面を止めない。
 - 性能:参照・OSM とも数万地物で、照合が数分以内に終わること。`QgsSpatialIndex` で候補を絞り、処理は `QgsTask` またはプロセッシングでバックグラウンド実行する。
 - 多言語:日本語と英語。文字列は `tr()` で包む。
 - ライセンス:GPL v2 以降(QGIS プラグインの要件)。

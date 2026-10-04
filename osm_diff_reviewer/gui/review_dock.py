@@ -4,7 +4,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from qgis.core import QgsProject
+from qgis.core import QgsApplication, QgsProject, QgsTask
 from qgis.gui import QgsDockWidget, QgsFileWidget
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QBrush, QColor
@@ -27,10 +27,12 @@ from qgis.PyQt.QtWidgets import (
 
 from ..core import matching, review
 from ..core.review import ReviewRow
+from ..data.http import LocalHttpClient, QgisHttpClient
 from ..data.store import StoreError, WorkspaceStore
 from ..i18n import tr
-from . import highlight
+from . import handover, highlight
 from .license_dialog import LicenseDialog
+from .settings_dialog import SettingsDialog
 from .review_model import ReviewFilterProxy, ReviewTableModel, classification_label, osm_label
 
 PROJECT_SCOPE = "OsmDiffReviewer"
@@ -61,6 +63,9 @@ class ReviewDock(QgsDockWidget):
         self.workspace_path: str | None = None
         self.store: WorkspaceStore | None = None
         self._cleaned_up = False
+        self.http = QgisHttpClient()  # Overpass: follows the QGIS proxy settings
+        self.josm_http = LocalHttpClient()  # JOSM on this computer: never through a proxy
+        self._task: QgsTask | None = None
         self.model =ReviewTableModel(self)
         self.proxy = ReviewFilterProxy(self)
         self.proxy.setSourceModel(self.model)
@@ -171,6 +176,19 @@ class ReviewDock(QgsDockWidget):
         self.save_button.clicked.connect(self.save_review)
         self.next_button = QPushButton(tr("Next candidate"))
         self.next_button.clicked.connect(self.select_next)
+        self.open_button = QPushButton(tr("Open in JOSM"))
+        self.open_button.clicked.connect(self.open_in_josm)
+        self.next_open_button = QPushButton(tr("Next && open"))
+        self.next_open_button.clicked.connect(self.next_and_open)
+        self.check_button = QPushButton(tr("Check in OSM"))
+        self.check_button.setToolTip(tr("Re-read the OSM version via Overpass to see whether the object changed"))
+        self.check_button.clicked.connect(self.check_in_osm)
+        self.send_reference_check = QCheckBox(tr("Send reference as a JOSM layer (missing only)"))
+        self.send_reference_check.setToolTip(
+            tr("Never uploaded; needs a confirmed licence of the reference data")
+        )
+        self.settings_button = QPushButton(tr("Settings…"))
+        self.settings_button.clicked.connect(lambda: SettingsDialog(self).exec())
         self.message_label = QLabel()
         self.message_label.setWordWrap(True)
 
@@ -205,6 +223,13 @@ class ReviewDock(QgsDockWidget):
         status_row.addWidget(self.next_button)
         detail_layout.addLayout(status_row)
         detail_layout.addWidget(self.note_edit)
+        josm_row = QHBoxLayout()
+        for widget in (self.open_button, self.next_open_button, self.check_button):
+            josm_row.addWidget(widget)
+        josm_row.addStretch(1)
+        josm_row.addWidget(self.settings_button)
+        detail_layout.addLayout(josm_row)
+        detail_layout.addWidget(self.send_reference_check)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         splitter.addWidget(self.table)
@@ -356,9 +381,56 @@ class ReviewDock(QgsDockWidget):
             parts.append(f"· {tr('Changed since the decision: recheck')}")
         return " ".join(parts)
 
+    def task_running(self) -> bool:
+        return self._task is not None
+
+    def _run_in_background(self, description: str, action) -> None:
+        """Run a network action off the GUI thread; its returned message is shown when done."""
+        if self.task_running():
+            return
+
+        def finished(exception, result=None) -> None:
+            if self._cleaned_up:
+                return
+            self._task = None
+            self._update_buttons()
+            self._message(str(exception) if exception else result or "")
+
+        self._task = QgsTask.fromFunction(description, lambda task: action(), on_finished=finished)
+        self._update_buttons()
+        self._message(tr("Working…"))
+        QgsApplication.taskManager().addTask(self._task)
+
+    def open_in_josm(self) -> None:
+        row = self.current_row()
+        if row is None or self.store is None:
+            return
+        store, http, send = self.store, self.josm_http, self.send_reference_check.isChecked()
+        self._run_in_background(tr("Open in JOSM"), lambda: handover.open_in_josm(row, store, http, send))
+
+    def next_and_open(self) -> None:
+        before = self.table.currentIndex().row()
+        self.select_next()
+        if self.table.currentIndex().row() != before:
+            self.open_in_josm()
+
+    def check_in_osm(self) -> None:
+        row = self.current_row()
+        if row is not None:
+            http = self.http
+            self._run_in_background(tr("Check in OSM"), lambda: handover.check_in_osm(row, http))
+
     def _set_editing_enabled(self, enabled: bool) -> None:
         for widget in (self.status_combo, self.note_edit, self.save_button):
             widget.setEnabled(enabled)
+        self._update_buttons()
+
+    def _update_buttons(self) -> None:
+        idle = not self.task_running()
+        has_row = self.table.currentIndex().isValid()
+        for widget in (self.open_button, self.check_button):
+            widget.setEnabled(idle and has_row)
+        self.next_open_button.setEnabled(idle)
 
     def _message(self, text: str) -> None:
         self.message_label.setText(text)
