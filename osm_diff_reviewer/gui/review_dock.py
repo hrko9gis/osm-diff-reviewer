@@ -30,7 +30,7 @@ from ..core.review import ReviewRow
 from ..data.http import LocalHttpClient, QgisHttpClient
 from ..data.store import StoreError, WorkspaceStore
 from ..i18n import tr
-from . import handover, highlight
+from . import handover, highlight, license_prompt
 from .background import BackgroundRunner
 from .license_dialog import LicenseDialog
 from .maproulette_dialog import MapRouletteDialog
@@ -68,6 +68,7 @@ class ReviewDock(QgsDockWidget):
         self.http = QgisHttpClient()  # Overpass: follows the QGIS proxy settings
         self.josm_http = LocalHttpClient()  # JOSM on this computer: never through a proxy
         self.runner = BackgroundRunner(lambda busy: self._update_buttons(), self._message)
+        self.ask_reconfirm = lambda source: license_prompt.ask_reconfirm(self, source)
         self.model =ReviewTableModel(self)
         self.proxy = ReviewFilterProxy(self)
         self.proxy.setSourceModel(self.model)
@@ -315,9 +316,9 @@ class ReviewDock(QgsDockWidget):
             return
         try:
             source = self.store.reference_source(source_name) or self.store.ensure_reference_source(source_name, None, "")[0]
-            dialog = LicenseDialog(source, self)
+            dialog = LicenseDialog(source, self, history=self.store.license_history(source_name))
             if dialog.exec():
-                self.store.save_reference_source(dialog.source())
+                self.store.record_license_decision(dialog.source(), expected_uri=source.source_uri)
         except StoreError as error:
             self._message(str(error))
 
@@ -409,7 +410,18 @@ class ReviewDock(QgsDockWidget):
         if row is None or self.store is None:
             return
         store, http, send = self.store, self.josm_http, self.send_reference_check.isChecked()
+        if send and not row.osm_type:
+            self._reconfirm_if_new_version(row.source_name)
         self.runner.run(tr("Open in JOSM"), lambda: handover.open_in_josm(row, store, http, send))
+
+    def _reconfirm_if_new_version(self, source_name: str) -> None:
+        """Ask on the GUI thread, before the hand-over runs, whether the licence holds for the new file."""
+        try:
+            source = self.store.reference_source(source_name)
+            if source is not None and source.version_changed and self.ask_reconfirm(source):
+                self.store.reconfirm_license(source_name, expected_uri=source.source_uri)
+        except StoreError as error:
+            self._message(str(error))
 
     def next_and_open(self) -> None:
         before = self.table.currentIndex().row()

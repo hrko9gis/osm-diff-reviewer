@@ -150,3 +150,22 @@ def test_buttons_are_disabled_while_a_request_runs(dock):
     release.set()
     _wait(dock)
     assert dock.open_button.isEnabled()
+
+
+def test_reference_layer_after_new_version_asks_and_sends(dock):
+    from dataclasses import replace
+
+    store = dock.store
+    source, _ = store.ensure_reference_source("src", None, "/data/v2.gpkg")
+    store.save_reference_source(
+        replace(source, license_status=LICENSE_CONFIRMED, confirmed_uri="/data/v1.gpkg", confirmed_at="2026-10-05")
+    )
+    dock.select_proxy_row(1)
+    dock.send_reference_check.setChecked(True)
+    dock.ask_reconfirm = lambda source: True
+    with FakeJosm() as josm:
+        settings.set_josm_url(josm.url)
+        dock.open_in_josm()
+        _wait(dock)
+    assert _paths(josm) == ["/version", "/load_and_zoom", "/load_data"]
+    assert store.license_history("src")[0].action == "reconfirmed"

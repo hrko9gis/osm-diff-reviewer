@@ -24,7 +24,7 @@ from ..core.crs import choose_working_crs
 from ..core.features import OsmFeature, ReferenceFeature, duplicate_keys, osm_features_from_layer, reference_features_from_layer
 from ..core.matching import Candidate
 from ..core.profile import Profile, ProfileError, load_profile
-from ..data.store import StoreError, WorkspaceStore
+from ..data.store import LICENSE_NEEDS_RECONFIRMATION, LICENSE_RESET, StoreError, WorkspaceStore
 from ..i18n import tr
 from .records import candidate_fields, candidate_record, output_feature
 
@@ -180,10 +180,17 @@ class ReferenceOsmAlgorithm(QgsProcessingAlgorithm):
         to_wgs84 = QgsCoordinateTransform(crs, WGS84, context.transformContext())
         records = [candidate_record(c, to_wgs84) for c in candidates]
         try:
-            _, license_reset = store.ensure_reference_source(source_name, key_field, source_uri)
-            if license_reset:
+            _, license_change = store.ensure_reference_source(source_name, key_field, source_uri)
+            if license_change == LICENSE_RESET:
                 feedback.pushWarning(
-                    tr("The data or ID field of '{}' changed, so its licence is unconfirmed again.").format(source_name)
+                    tr("The ID field of '{}' changed, so its licence is unconfirmed again.").format(source_name)
+                )
+            elif license_change == LICENSE_NEEDS_RECONFIRMATION:
+                feedback.pushWarning(
+                    tr(
+                        "'{}' now comes from another file than the one its licence was confirmed for; exports will "
+                        "ask you to confirm that the same conditions apply."
+                    ).format(source_name)
                 )
             run_id = store.record_run(
                 source_name,

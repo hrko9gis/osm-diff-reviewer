@@ -21,7 +21,11 @@ from osgeo import ogr, osr
 from ..core import review
 from ..i18n import tr
 from ..core.review import PriorReview, ReviewKey, ReviewRow
-from .license_gate import LICENSE_STATUSES, LICENSE_UNCONFIRMED, ReferenceSource
+from .license_gate import LICENSE_CONFIRMED, LICENSE_STATUSES, LICENSE_UNCONFIRMED, ReferenceSource
+
+# What ensure_reference_source() did to the licence record.
+LICENSE_RESET = "reset"  # ID field changed: back to unconfirmed
+LICENSE_NEEDS_RECONFIRMATION = "needs_reconfirmation"  # new file: still confirmed, to be reconfirmed before export
 
 # One workspace operation at a time across threads (GUI and QgsTask workers): SQLite writers
 # would otherwise hit "database is locked", and the OGR exception mode is process-wide.
@@ -57,7 +61,13 @@ _SCHEMA: dict[str, tuple[int, tuple[tuple[str, int], ...]]] = {
     "reference_sources": (
         ogr.wkbNone,
         (("name", _S), ("license_name", _S), ("attribution", _S), ("license_status", _S),
-         ("evidence_url", _S), ("key_field", _S), ("source_uri", _S), ("updated_at", _S)),
+         ("evidence_url", _S), ("key_field", _S), ("source_uri", _S), ("updated_at", _S),
+         ("confirmed_uri", _S), ("confirmed_at", _S)),
+    ),
+    "license_history": (
+        ogr.wkbNone,
+        (("source_name", _S), ("decided_at", _S), ("action", _S), ("license_status", _S), ("source_uri", _S),
+         ("license_name", _S), ("attribution", _S), ("evidence_url", _S)),
     ),
     "runs": (
         ogr.wkbNone,
@@ -113,6 +123,23 @@ class CandidateRecord:
     change_kind: str = ""
     verdict: str = ""
     change_detail: str = ""
+
+
+@dataclass(frozen=True)
+class LicenseRecord:
+    """One licence decision: recorded in the licence dialog, or reconfirmed for a new file."""
+
+    decided_at: str
+    action: str
+    license_status: str
+    source_uri: str
+    license_name: str
+    attribution: str
+    evidence_url: str
+
+
+# Tables every workspace has had since M2; newer tables are added when an older workspace is opened.
+_REQUIRED_TABLES = ("reference_sources", "runs", "candidates", "reviews", "mr_tasks")
 
 
 @dataclass(frozen=True)
@@ -220,7 +247,7 @@ class WorkspaceStore:
         if not store.path.is_file():
             raise StoreError(tr("Workspace not found: {}").format(store.path))
         with store._dataset() as dataset:
-            missing = [name for name in _SCHEMA if dataset.GetLayerByName(name) is None]
+            missing = [name for name in _REQUIRED_TABLES if dataset.GetLayerByName(name) is None]
             outdated = not missing and store._missing_columns(dataset)
         if missing:
             raise StoreError(tr("{} is not a workspace (missing tables: {})").format(store.path, ", ".join(missing)))
@@ -234,7 +261,10 @@ class WorkspaceStore:
     @staticmethod
     def _missing_columns(dataset: ogr.DataSource) -> bool:
         for name, (_, fields) in _SCHEMA.items():
-            definition = dataset.GetLayerByName(name).GetLayerDefn()
+            layer = dataset.GetLayerByName(name)
+            if layer is None:
+                return True
+            definition = layer.GetLayerDefn()
             if any(definition.GetFieldIndex(field_name) < 0 for field_name, _ in fields):
                 return True
         return False
@@ -286,6 +316,11 @@ class WorkspaceStore:
     # ----- reference sources -------------------------------------------------------
 
     def save_reference_source(self, source: ReferenceSource) -> None:
+        with self._transaction() as dataset:
+            self._write_source(dataset, source)
+
+    @staticmethod
+    def _write_source(dataset: ogr.DataSource, source: ReferenceSource) -> None:
         values = {
             "name": source.name,
             "license_name": source.license_name,
@@ -294,14 +329,82 @@ class WorkspaceStore:
             "evidence_url": source.evidence_url,
             "key_field": source.key_field,
             "source_uri": source.source_uri,
+            "confirmed_uri": source.confirmed_uri,
+            "confirmed_at": source.confirmed_at,
             "updated_at": _now(),
         }
+        layer = dataset.GetLayerByName("reference_sources")
+        existing = next(_features(layer, _where(name=source.name)), None)
+        feature = existing or ogr.Feature(layer.GetLayerDefn())
+        _set_values(feature, values)
+        (layer.SetFeature if existing else layer.CreateFeature)(feature)
+
+    def _decide(self, source: ReferenceSource, action: str) -> ReferenceSource:
+        """Store a licence decision together with its history entry."""
         with self._transaction() as dataset:
-            layer = dataset.GetLayerByName("reference_sources")
-            existing = next(_features(layer, _where(name=source.name)), None)
-            feature = existing or ogr.Feature(layer.GetLayerDefn())
-            _set_values(feature, values)
-            (layer.SetFeature if existing else layer.CreateFeature)(feature)
+            self._write_source(dataset, source)
+            history = dataset.GetLayerByName("license_history")
+            entry = ogr.Feature(history.GetLayerDefn())
+            _set_values(
+                entry,
+                {"source_name": source.name, "decided_at": _now(), "action": action,
+                 "license_status": source.license_status, "source_uri": source.source_uri,
+                 "license_name": source.license_name, "attribution": source.attribution,
+                 "evidence_url": source.evidence_url},
+            )
+            history.CreateFeature(entry)
+        return source
+
+    def _current_file(self, name: str, expected_uri: str | None) -> ReferenceSource | None:
+        """The stored source; refuses when it no longer comes from the file the user was shown."""
+        current = self.reference_source(name)
+        if current is not None and expected_uri is not None and current.source_uri != expected_uri:
+            raise StoreError(
+                tr("The reference data of '{}' now comes from another file ({}); open the licence again.").format(
+                    name, current.source_uri
+                )
+            )
+        return current
+
+    def record_license_decision(self, source: ReferenceSource, expected_uri: str | None = None) -> ReferenceSource:
+        """A decision made in the licence dialog; "confirmed" applies to the current file.
+
+        The file and ID field are taken from the store, not from the dialog's snapshot; with
+        ``expected_uri`` (the file the dialog showed) the decision is refused if a run switched files.
+        """
+        with _LOCK:
+            current = self._current_file(source.name, expected_uri)
+            if current is not None:
+                source = replace(source, source_uri=current.source_uri, key_field=current.key_field)
+            if source.license_status == LICENSE_CONFIRMED:
+                decided = replace(source, confirmed_uri=source.source_uri, confirmed_at=_now())
+            else:
+                decided = replace(source, confirmed_uri="", confirmed_at="")
+            return self._decide(decided, "recorded")
+
+    def reconfirm_license(self, name: str, expected_uri: str | None = None) -> ReferenceSource:
+        """The same licence conditions apply to the current file (e.g. a new release of the data).
+
+        ``expected_uri`` is the file the user was asked about; nothing is confirmed if it changed since.
+        """
+        with _LOCK:
+            source = self._current_file(name, expected_uri)
+            if source is None or source.license_status != LICENSE_CONFIRMED:
+                raise StoreError(tr("Only a confirmed licence can be reconfirmed."))
+            return self._decide(replace(source, confirmed_uri=source.source_uri, confirmed_at=_now()), "reconfirmed")
+
+    def license_history(self, name: str) -> list[LicenseRecord]:
+        """Licence decisions for a reference source, newest first."""
+        with self._dataset() as dataset:
+            layer = dataset.GetLayerByName("license_history")
+            if layer is None:  # older workspace that could not be upgraded (read-only)
+                return []
+            rows = [(f.GetFID(), _values(f)) for f in _features(layer, _where(source_name=name))]
+        return [
+            LicenseRecord(**{k: v[k] or "" for k in (
+                "decided_at", "action", "license_status", "source_uri", "license_name", "attribution", "evidence_url")})
+            for _, v in sorted(rows, key=lambda item: item[0], reverse=True)
+        ]
 
     def reference_sources(self) -> list[ReferenceSource]:
         with self._dataset() as dataset:
@@ -315,27 +418,45 @@ class WorkspaceStore:
 
     def ensure_reference_source(
         self, name: str, key_field: str | None, source_uri: str
-    ) -> tuple[ReferenceSource, bool]:
-        """Return the recorded source, creating an unconfirmed record on first use.
+    ) -> tuple[ReferenceSource, str | None]:
+        """Return the recorded source for this run, creating an unconfirmed record on first use.
 
-        When the data now comes from elsewhere or is keyed differently, the licence
-        decision no longer applies: it is reset to unconfirmed and True is returned.
+        The second value says what happened to the licence:
+        - ``LICENSE_RESET``: the ID field changed, so the data is keyed differently; back to unconfirmed.
+        - ``LICENSE_NEEDS_RECONFIRMATION``: the data now comes from another file (e.g. a new release);
+          it stays confirmed for the earlier file and exports ask for a reconfirmation.
         """
         existing = self.reference_source(name)
         if existing is None:
             source = ReferenceSource(name, "", "", LICENSE_UNCONFIRMED, "", key_field, source_uri)
             self.save_reference_source(source)
-            return source, False
-        same_origin = existing.source_uri in ("", source_uri)  # "" = recorded before URIs were kept
-        if same_origin and existing.key_field == key_field:
-            if existing.source_uri != source_uri:
-                existing = replace(existing, source_uri=source_uri)
-                self.save_reference_source(existing)
-            return existing, False
-        reset = existing.license_status != LICENSE_UNCONFIRMED
-        source = replace(existing, key_field=key_field, source_uri=source_uri, license_status=LICENSE_UNCONFIRMED)
-        self.save_reference_source(source)
-        return source, reset
+            return source, None
+        if existing.license_status == LICENSE_CONFIRMED and not existing.confirmed_uri:
+            # Confirmed before files were tracked: the confirmation belongs to the file recorded then,
+            # and dates from the record's last update.
+            existing = replace(
+                existing, confirmed_uri=existing.source_uri or source_uri, confirmed_at=self._updated_at(name)
+            )
+        if existing.key_field != key_field:
+            reset = existing.license_status != LICENSE_UNCONFIRMED
+            source = replace(
+                existing, key_field=key_field, source_uri=source_uri, license_status=LICENSE_UNCONFIRMED,
+                confirmed_uri="", confirmed_at="",
+            )
+            if reset:
+                self._decide(source, "reset")  # logged, so the history explains the status
+                return source, LICENSE_RESET
+            self.save_reference_source(source)
+            return source, None
+        source = replace(existing, source_uri=source_uri)
+        if source != self.reference_source(name):
+            self.save_reference_source(source)
+        return source, LICENSE_NEEDS_RECONFIRMATION if source.version_changed else None
+
+    def _updated_at(self, name: str) -> str:
+        with self._dataset() as dataset:
+            feature = next(_features(dataset.GetLayerByName("reference_sources"), _where(name=name)), None)
+            return (_values(feature)["updated_at"] or "") if feature else ""
 
     @staticmethod
     def _source(values: dict) -> ReferenceSource:
@@ -348,6 +469,8 @@ class WorkspaceStore:
             evidence_url=values["evidence_url"] or "",
             key_field=values["key_field"],
             source_uri=values.get("source_uri") or "",
+            confirmed_uri=values.get("confirmed_uri") or "",
+            confirmed_at=values.get("confirmed_at") or "",
         )
 
     # ----- runs and candidates -----------------------------------------------------

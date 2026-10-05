@@ -121,3 +121,20 @@ def test_reload_button_picks_up_new_runs(dock):
     WorkspaceStore.open(dock.workspace_path).record_run("src", "{}", [_record("R9")])
     dock.reload_button.click()
     assert [dock.proxy.row_at(dock.proxy.index(i, 0)).ref_key for i in range(dock.proxy.rowCount())] == ["R9"]
+
+
+def test_license_dialog_shows_history_and_new_version_notice(qgis_app):
+    from osm_diff_reviewer.data.license_gate import LICENSE_CONFIRMED, ReferenceSource
+    from osm_diff_reviewer.data.store import LicenseRecord
+    from osm_diff_reviewer.gui.license_dialog import LicenseDialog
+
+    source = ReferenceSource("src", "CC BY 4.0", "○○市", LICENSE_CONFIRMED, "", "id", "/data/v2.gpkg", "/data/v1.gpkg", "2026-10-05T09:00:00+00:00")
+    history = [
+        LicenseRecord("2026-10-05T09:00:00+00:00", "recorded", LICENSE_CONFIRMED, "/data/v1.gpkg", "CC BY 4.0", "○○市", ""),
+    ]
+    dialog = LicenseDialog(source, history=history)
+    assert dialog.history_table.rowCount() == 1
+    assert "/data/v1.gpkg" in dialog.history_table.item(0, 3).text()
+    assert "2026-10-05" in dialog.version_label.text() and not dialog.version_label.isHidden()
+    # Saving with "confirmed" applies the confirmation to the current file.
+    assert dialog.source().license_status == LICENSE_CONFIRMED

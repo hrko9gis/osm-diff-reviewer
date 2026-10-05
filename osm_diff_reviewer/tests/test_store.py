@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from osgeo import ogr
 
@@ -125,22 +127,74 @@ def test_latest_run_id_without_runs(store):
     assert store.latest_run_id("src") is None
 
 
-def test_license_resets_when_source_identity_changes(store):
-    source, reset = store.ensure_reference_source("src", key_field="id", source_uri="/data/a.gpkg")
-    assert reset is False
-    store.save_reference_source(ReferenceSource(**{**vars(source), "license_status": LICENSE_CONFIRMED}))
-    same, reset = store.ensure_reference_source("src", key_field="id", source_uri="/data/a.gpkg")
-    assert (same.license_status, reset) == (LICENSE_CONFIRMED, False)
-    moved, reset = store.ensure_reference_source("src", key_field="id", source_uri="/data/other.gpkg")
-    assert (moved.license_status, reset) == (LICENSE_UNCONFIRMED, True)
-    assert store.reference_source("src").source_uri == "/data/other.gpkg"
+def _confirm(store, name="src"):
+    source = store.reference_source(name)
+    store.record_license_decision(ReferenceSource(**{**vars(source), "license_status": LICENSE_CONFIRMED}))
+    return store.reference_source(name)
+
+
+def test_new_file_keeps_confirmation_but_asks_for_reconfirmation(store):
+    from osm_diff_reviewer.data.store import LICENSE_NEEDS_RECONFIRMATION
+
+    _, change = store.ensure_reference_source("src", key_field="id", source_uri="/data/v1.gpkg")
+    assert change is None
+    confirmed = _confirm(store)
+    assert (confirmed.confirmed_uri, confirmed.version_changed) == ("/data/v1.gpkg", False)
+    same, change = store.ensure_reference_source("src", key_field="id", source_uri="/data/v1.gpkg")
+    assert (same.license_status, change) == (LICENSE_CONFIRMED, None)
+    newer, change = store.ensure_reference_source("src", key_field="id", source_uri="/data/v2.gpkg")
+    assert change == LICENSE_NEEDS_RECONFIRMATION
+    assert (newer.license_status, newer.version_changed, newer.confirmed_uri) == (LICENSE_CONFIRMED, True, "/data/v1.gpkg")
+    assert store.reference_source("src").source_uri == "/data/v2.gpkg"
 
 
 def test_license_resets_when_key_field_changes(store):
-    source, _ = store.ensure_reference_source("src", key_field="id", source_uri="u")
-    store.save_reference_source(ReferenceSource(**{**vars(source), "license_status": LICENSE_CONFIRMED}))
-    changed, reset = store.ensure_reference_source("src", key_field="code", source_uri="u")
-    assert (changed.license_status, changed.key_field, reset) == (LICENSE_UNCONFIRMED, "code", True)
+    from osm_diff_reviewer.data.store import LICENSE_RESET
+
+    store.ensure_reference_source("src", key_field="id", source_uri="u")
+    _confirm(store)
+    changed, change = store.ensure_reference_source("src", key_field="code", source_uri="u")
+    assert (changed.license_status, changed.key_field, change) == (LICENSE_UNCONFIRMED, "code", LICENSE_RESET)
+
+
+def test_legacy_confirmation_counts_for_the_file_it_was_recorded_with(store):
+    from osm_diff_reviewer.data.store import LICENSE_NEEDS_RECONFIRMATION
+
+    store.save_reference_source(ReferenceSource("src", "CC0", "", LICENSE_CONFIRMED, "", "id", "/data/v1.gpkg"))
+    same, change = store.ensure_reference_source("src", key_field="id", source_uri="/data/v1.gpkg")
+    assert (same.version_changed, change) == (False, None)
+    _, change = store.ensure_reference_source("src", key_field="id", source_uri="/data/v2.gpkg")
+    assert change == LICENSE_NEEDS_RECONFIRMATION
+
+
+def test_reconfirmation_and_history(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/v1.gpkg")
+    _confirm(store)
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/v2.gpkg")
+    reconfirmed = store.reconfirm_license("src")
+    assert (reconfirmed.confirmed_uri, reconfirmed.version_changed) == ("/data/v2.gpkg", False)
+    history = store.license_history("src")
+    assert [(h.action, h.source_uri, h.license_status) for h in history] == [
+        ("reconfirmed", "/data/v2.gpkg", LICENSE_CONFIRMED),
+        ("recorded", "/data/v1.gpkg", LICENSE_CONFIRMED),
+    ]
+    assert history[0].decided_at >= history[1].decided_at
+    assert store.license_history("other") == []
+
+
+def test_reconfirmation_requires_a_confirmed_source(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="u")
+    with pytest.raises(StoreError):
+        store.reconfirm_license("src")
+
+
+def test_recording_a_non_confirmed_decision_clears_the_confirmed_file(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="u")
+    confirmed = _confirm(store)
+    store.record_license_decision(ReferenceSource(**{**vars(confirmed), "license_status": "rejected"}))
+    source = store.reference_source("src")
+    assert (source.license_status, source.confirmed_uri) == ("rejected", "")
+    assert [h.license_status for h in store.license_history("src")] == ["rejected", LICENSE_CONFIRMED]
 
 
 def test_unknown_license_status_in_file_reads_as_unconfirmed(store):
@@ -232,3 +286,52 @@ def test_open_adds_columns_missing_from_older_workspaces(store):
     WorkspaceStore.open(store.path)
     dataset = ogr.Open(str(store.path))
     assert dataset.GetLayerByName("candidates").GetLayerDefn().GetFieldIndex("verdict") >= 0
+
+
+def test_stale_dialog_save_is_refused_when_the_file_changed_meanwhile(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/A.gpkg")
+    shown = _confirm(store)  # the dialog was opened with this state (file A)
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/B.gpkg")  # a run switches to B
+    with pytest.raises(StoreError):
+        store.record_license_decision(shown, expected_uri=shown.source_uri)
+    current = store.reference_source("src")
+    assert (current.source_uri, current.confirmed_uri, current.version_changed) == ("/data/B.gpkg", "/data/A.gpkg", True)
+
+
+def test_decision_takes_file_and_key_field_from_the_store(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/A.gpkg")
+    stale = replace(store.reference_source("src"), source_uri="/old.gpkg", key_field="old", license_status=LICENSE_CONFIRMED)
+    decided = store.record_license_decision(stale)
+    assert (decided.source_uri, decided.key_field, decided.confirmed_uri) == ("/data/A.gpkg", "id", "/data/A.gpkg")
+
+
+def test_reconfirmation_only_for_the_file_that_was_shown(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/A.gpkg")
+    _confirm(store)
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/B.gpkg")
+    shown = store.reference_source("src")  # the prompt shows B
+    store.ensure_reference_source("src", key_field="id", source_uri="/data/C.gpkg")  # a run switches to C
+    with pytest.raises(StoreError):
+        store.reconfirm_license("src", expected_uri=shown.source_uri)
+    assert store.reference_source("src").version_changed is True
+
+
+def test_history_of_older_workspace_without_the_table_is_empty(store):
+    dataset = ogr.Open(str(store.path), update=1)
+    dataset.DeleteLayer(dataset.GetLayerByName("license_history").GetName())
+    dataset = None
+    reader = WorkspaceStore(store.path)  # no upgrade (as with a read-only file)
+    assert reader.license_history("src") == []
+
+
+def test_legacy_confirmation_gets_a_date(store):
+    store.save_reference_source(ReferenceSource("src", "CC0", "", LICENSE_CONFIRMED, "", "id", "/data/v1.gpkg"))
+    source, _ = store.ensure_reference_source("src", key_field="id", source_uri="/data/v2.gpkg")
+    assert source.confirmed_at.startswith("20")
+
+
+def test_key_field_reset_is_logged(store):
+    store.ensure_reference_source("src", key_field="id", source_uri="u")
+    _confirm(store)
+    store.ensure_reference_source("src", key_field="code", source_uri="u")
+    assert [(h.action, h.license_status) for h in store.license_history("src")][0] == ("reset", "unconfirmed")

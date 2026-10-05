@@ -119,3 +119,42 @@ def test_dialog_stays_open_while_a_request_runs(store, configured):
     release.set()
     _wait(dialog)
     dialog.reject()
+
+
+@pytest.fixture()
+def new_version(store):
+    """The licence was confirmed for an older file of the reference data."""
+    source = store.reference_source("src")
+    store.save_reference_source(
+        replace(source, source_uri="/data/v2.gpkg", confirmed_uri="/data/v1.gpkg", confirmed_at="2026-10-05T09:00:00+00:00")
+    )
+    return store
+
+
+def test_new_version_offers_reconfirmation_before_export(new_version, tmp_path, configured):
+    store = new_version
+    dialog = _dialog(store)
+    assert dialog.export_button.isEnabled() and dialog.create_button.isEnabled()
+    assert "2026-10-05" in dialog.licence_label.text()
+
+    asked = []
+    dialog.ask_reconfirm = lambda source: asked.append(source.name) or False
+    dialog.export_geojson(str(tmp_path / "declined.geojson"))
+    assert asked == ["src"] and not (tmp_path / "declined.geojson").exists()
+
+    dialog.ask_reconfirm = lambda source: True
+    dialog.export_geojson(str(tmp_path / "accepted.geojson"))
+    assert (tmp_path / "accepted.geojson").exists()
+    assert store.reference_source("src").version_changed is False
+    assert store.license_history("src")[0].action == "reconfirmed"
+
+
+def test_new_version_declined_sends_nothing_to_maproulette(new_version, configured, server):
+    dialog = _dialog(new_version)
+    dialog.ask_reconfirm = lambda source: False
+    dialog.project_combo.addItem("p", 3)
+    dialog.name_edit.setText("c")
+    dialog.instruction_edit.setPlainText("i")
+    dialog.create_challenge()
+    _wait(dialog)
+    assert server.requests == []

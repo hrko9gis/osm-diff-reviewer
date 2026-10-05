@@ -116,3 +116,19 @@ def test_rerun_without_key_field_reuses_recorded_key(provider, m1_dir, tmp_path)
     )
     keys = {r.ref_key for r in WorkspaceStore.open(workspace).load_rows(second["RUN_ID"])}
     assert keys == {f"R{i}" for i in range(1, 11)}
+
+
+def test_new_reference_file_keeps_licence_but_needs_reconfirmation(provider, m1_dir, tmp_path):
+    workspace = tmp_path / "work.gpkg"
+    profile = tmp_path / "profile.json"
+    profile.write_text(json.dumps(PROFILE, ensure_ascii=False), encoding="utf-8")
+    _run(workspace, m1_dir / "reference.geojson", m1_dir / "osm.geojson", profile)
+    store = WorkspaceStore.open(workspace)
+    source = store.reference_source("試験施設一覧")
+    store.record_license_decision(source.__class__(**{**vars(source), "license_status": "confirmed"}))
+
+    newer = tmp_path / "reference_2026.geojson"
+    newer.write_text((m1_dir / "reference.geojson").read_text(encoding="utf-8"), encoding="utf-8")
+    _run(workspace, newer, m1_dir / "osm.geojson", profile)
+    source = store.reference_source("試験施設一覧")
+    assert (source.license_status, source.version_changed) == ("confirmed", True)

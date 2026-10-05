@@ -48,6 +48,10 @@
       <translation>参照データ「{}」のライセンスが確認されていません。参照データを外部に出す前に、OSM で利用できることを確認してください。</translation>
     </message>
     <message>
+      <source>The licence of '{}' was confirmed on {} for an earlier file ({}); confirm that the same conditions apply to the current file.</source>
+      <translation>「{}」のライセンスは {} に以前のファイル({})について確認されたものです。現在のファイルにも同じ条件が当てはまるか確認してください。</translation>
+    </message>
+    <message>
       <source>Not an Overpass API URL: {!r}</source>
       <translation>Overpass API の URL ではありません:{!r}</translation>
     </message>
@@ -68,12 +72,20 @@
       <translation>Overpass API の応答を解釈できません:{}</translation>
     </message>
     <message>
+      <source>Only a confirmed licence can be reconfirmed.</source>
+      <translation>再確認できるのは、確認済みのライセンスだけです。</translation>
+    </message>
+    <message>
       <source>Workspace not found: {}</source>
       <translation>作業ファイルが見つかりません:{}</translation>
     </message>
     <message>
       <source>{} is not a workspace (missing tables: {})</source>
       <translation>{} は作業ファイルではありません(足りないテーブル:{})</translation>
+    </message>
+    <message>
+      <source>The reference data of '{}' now comes from another file ({}); open the licence again.</source>
+      <translation>「{}」の参照データは別のファイル({})から読み込まれるようになりました。ライセンスの画面を開き直してください。</translation>
     </message>
     <message>
       <source>Unknown review status: {!r}</source>
@@ -232,6 +244,38 @@
       <translation>不可:OSM で利用できない</translation>
     </message>
     <message>
+      <source>Recorded</source>
+      <translation>記録</translation>
+    </message>
+    <message>
+      <source>Reconfirmed for a new file</source>
+      <translation>新しいファイルで再確認</translation>
+    </message>
+    <message>
+      <source>Reset: the ID field changed</source>
+      <translation>リセット:ID フィールドの変更</translation>
+    </message>
+    <message>
+      <source>Date</source>
+      <translation>日時</translation>
+    </message>
+    <message>
+      <source>Decision</source>
+      <translation>操作</translation>
+    </message>
+    <message>
+      <source>Use in OSM</source>
+      <translation>OSM での利用</translation>
+    </message>
+    <message>
+      <source>File</source>
+      <translation>ファイル</translation>
+    </message>
+    <message>
+      <source>Licence</source>
+      <translation>ライセンス</translation>
+    </message>
+    <message>
       <source>Reference data licence</source>
       <translation>参照データのライセンス</translation>
     </message>
@@ -240,24 +284,48 @@
       <translation>参照データ</translation>
     </message>
     <message>
-      <source>Licence</source>
-      <translation>ライセンス</translation>
+      <source>Current file</source>
+      <translation>現在のファイル</translation>
     </message>
     <message>
       <source>Attribution</source>
       <translation>出典表記</translation>
     </message>
     <message>
-      <source>Use in OSM</source>
-      <translation>OSM での利用</translation>
-    </message>
-    <message>
       <source>Evidence URL</source>
       <translation>根拠 URL</translation>
     </message>
     <message>
+      <source>History</source>
+      <translation>履歴</translation>
+    </message>
+    <message>
+      <source>Confirmed on {} for an earlier file ({}). Save with "Confirmed" to confirm the licence for the current file, or answer the question shown before the next export.</source>
+      <translation>{} に以前のファイル({})について確認済みです。「確認済み」のまま保存すると現在のファイルについて確認したことになります。次に書き出すときに表示される確認に答えることもできます。</translation>
+    </message>
+    <message>
       <source>Reference data can only be exported (JOSM reference layer, GeoJSON, MapRoulette) when its use in OSM is confirmed. Matching and reviewing work regardless. Adding external data to OSM may fall under the &lt;a href="{}"&gt;Import Guidelines&lt;/a&gt;; consult your local community before large changes.</source>
       <translation>参照データを外部に出す操作(JOSM への参照レイヤ送信、GeoJSON 書き出し、MapRoulette)は、OSM での利用が確認済みの場合だけ行えます。照合とレビューはいつでも行えます。外部データを OSM に取り込む作業は&lt;a href="{}"&gt;インポートガイドライン&lt;/a&gt;の対象になることがあります。大きな変更の前には地域コミュニティに相談してください。</translation>
+    </message>
+    <message>
+      <source>Confirm the licence for the new file</source>
+      <translation>新しいファイルのライセンス確認</translation>
+    </message>
+    <message>
+      <source>The licence of '{}' ({}) was confirmed on {} for:
+{}
+
+The reference data now comes from:
+{}
+
+Do the same licence conditions apply to this file? Your answer is recorded in the licence history.</source>
+      <translation>「{}」のライセンス({})は {} に次のファイルについて確認されました:
+{}
+
+参照データは現在、次のファイルから読み込まれています:
+{}
+
+このファイルにも同じライセンス条件が当てはまりますか?回答はライセンスの履歴に記録されます。</translation>
     </message>
     <message>
       <source>MapRoulette</source>
@@ -372,6 +440,10 @@
       <translation>書き出しは止めています:この参照データのライセンスが確認されていません(レビューパネルの「ライセンス…」で記録してください)。作成済みチャレンジの進捗同期は行えます。</translation>
     </message>
     <message>
+      <source>Not sent: the licence was not confirmed for the current file.</source>
+      <translation>送信しませんでした:現在のファイルについてライセンスが確認されていません。</translation>
+    </message>
+    <message>
       <source>Export tasks</source>
       <translation>タスクの書き出し</translation>
     </message>
@@ -392,6 +464,10 @@
       <translation>「{1}」の候補 {0} 件(レビューパネルに表示中のもの)</translation>
     </message>
     <message>
+      <source>Licence confirmed. Before publishing a large challenge, consult your local community (&lt;a href="{}"&gt;Import Guidelines&lt;/a&gt;).</source>
+      <translation>ライセンスは確認済みです。大きなチャレンジを公開する前に地域コミュニティに相談してください(&lt;a href="{}"&gt;インポートガイドライン&lt;/a&gt;)。</translation>
+    </message>
+    <message>
       <source>Wrote {} task(s) to {}</source>
       <translation>{} 件のタスクを {} に書き出しました</translation>
     </message>
@@ -408,8 +484,8 @@
       <translation>{} 件の判定を更新しました。変化なし {} 件、最新の照合結果にない候補 {} 件、不明なタスク {} 件。</translation>
     </message>
     <message>
-      <source>Licence confirmed. Before publishing a large challenge, consult your local community (&lt;a href="{}"&gt;Import Guidelines&lt;/a&gt;).</source>
-      <translation>ライセンスは確認済みです。大きなチャレンジを公開する前に地域コミュニティに相談してください(&lt;a href="{}"&gt;インポートガイドライン&lt;/a&gt;)。</translation>
+      <source>The licence was confirmed on {} for an earlier file ({}). You will be asked to confirm it for the current file before exporting.</source>
+      <translation>ライセンスは {} に以前のファイル({})について確認されています。書き出す前に、現在のファイルについて確認を求めます。</translation>
     </message>
     <message>
       <source>OSM Diff Reviewer</source>
@@ -780,8 +856,12 @@
       <translation>参照キー {} 件が重複しています(例:{})。判定を区別できません。</translation>
     </message>
     <message>
-      <source>The data or ID field of '{}' changed, so its licence is unconfirmed again.</source>
-      <translation>「{}」のデータまたは ID フィールドが変わったため、ライセンスは未確認に戻りました。</translation>
+      <source>The ID field of '{}' changed, so its licence is unconfirmed again.</source>
+      <translation>「{}」の ID フィールドが変わったため、ライセンスは未確認に戻りました。</translation>
+    </message>
+    <message>
+      <source>'{}' now comes from another file than the one its licence was confirmed for; exports will ask you to confirm that the same conditions apply.</source>
+      <translation>「{}」はライセンスを確認したときとは別のファイルから読み込まれています。書き出しの際に、同じ条件が当てはまるかの確認を求めます。</translation>
     </message>
   </context>
 </TS>

@@ -25,6 +25,7 @@ from ..data.license_gate import LicenseGateError, export_allowed
 from ..data.store import StoreError, WorkspaceStore
 from ..export import maproulette as mr
 from ..i18n import tr
+from . import license_prompt
 from .background import BackgroundRunner
 
 DEFAULT_TEMPLATE = "{classification}: {ref_key} {@id}"
@@ -41,6 +42,7 @@ class MapRouletteDialog(QDialog):
         self._projects: list[tuple[int, str]] | None = None
         self._new_challenge: int | None = None
         self.runner = BackgroundRunner(self._on_busy_changed, self._message)
+        self.ask_reconfirm = lambda source: license_prompt.ask_reconfirm(self, source)
         self._build_ui()
         self._refresh_challenges()
         self._apply_licence()
@@ -147,18 +149,42 @@ class MapRouletteDialog(QDialog):
             return None
 
     def _apply_licence(self) -> None:
-        allowed = export_allowed(self._source())
-        self.licence_label.setText(
-            tr("Licence confirmed. Before publishing a large challenge, consult your local community "
-               '(<a href="{}">Import Guidelines</a>).').format(IMPORT_GUIDELINES_URL)
-            if allowed
-            else tr("Export is blocked: the licence of this reference data is not confirmed (use Licence… in the "
-                    "review panel). Progress sync of existing challenges still works.")
-        )
+        source = self._source()
+        if export_allowed(source):
+            text = tr("Licence confirmed. Before publishing a large challenge, consult your local community "
+                      '(<a href="{}">Import Guidelines</a>).').format(IMPORT_GUIDELINES_URL)
+        elif source is not None and source.version_changed:
+            text = tr("The licence was confirmed on {} for an earlier file ({}). You will be asked to confirm it for "
+                      "the current file before exporting.").format(source.confirmed_at[:10], source.confirmed_uri)
+        else:
+            text = tr("Export is blocked: the licence of this reference data is not confirmed (use Licence… in the "
+                      "review panel). Progress sync of existing challenges still works.")
+        self.licence_label.setText(text)
         self._on_busy_changed(self.runner.running())
 
+    def _exportable(self) -> bool:
+        """Confirmed for the current file, or confirmed for an earlier one (asked when exporting)."""
+        source = self._source()
+        return export_allowed(source) or (source is not None and source.version_changed)
+
+    def _licence_ready(self) -> bool:
+        """Before sending: a confirmation for an earlier file needs the user's word for the current one."""
+        source = self._source()
+        if source is None or not source.version_changed:
+            return True
+        if not self.ask_reconfirm(source):
+            self._message(tr("Not sent: the licence was not confirmed for the current file."))
+            return False
+        try:
+            self.store.reconfirm_license(self.source_name, expected_uri=source.source_uri)
+        except StoreError as error:
+            self._message(str(error))
+            return False
+        self._apply_licence()
+        return True
+
     def _on_busy_changed(self, busy: bool) -> None:
-        allowed = export_allowed(self._source())
+        allowed = self._exportable()
         self.export_button.setEnabled(allowed and not busy)
         self.create_button.setEnabled(allowed and not busy)
         self.load_projects_button.setEnabled(not busy)
@@ -220,6 +246,8 @@ class MapRouletteDialog(QDialog):
             path, _ = QFileDialog.getSaveFileName(self, tr("Export tasks"), "", tr("GeoJSON (*.geojson *.json)"))
             if not path:
                 return
+        if not self._licence_ready():
+            return
         try:
             mr.write_geojson(path, self.rows, self.template_edit.text(), self._source(), self.line_by_line_check.isChecked())
         except (LicenseGateError, mr.MapRouletteError, OSError) as error:
@@ -235,6 +263,8 @@ class MapRouletteDialog(QDialog):
         self._run(tr("Load MapRoulette projects"), action)
 
     def create_challenge(self) -> None:
+        if not self._licence_ready():
+            return
         spec = mr.ChallengeSpec(
             project_id=self.project_combo.currentData() or 0,
             name=self.name_edit.text(),
