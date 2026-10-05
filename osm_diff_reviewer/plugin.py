@@ -1,17 +1,22 @@
 """Plugin entry point: Processing provider, menu action and review dock."""
 
+from pathlib import Path
+
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QIcon
 
-from .i18n import tr
+from .i18n import install_translator, remove_translator, tr
 from .processing.provider import OsmDiffReviewerProvider
 
 MENU = "&OSM Diff Reviewer"
+ICON = Path(__file__).resolve().parent / "icon.png"
 
 
 class OsmDiffReviewerPlugin:
     def __init__(self, iface) -> None:
         self.iface = iface
+        self.translator = install_translator()  # before any widget or algorithm is created
         self.provider: OsmDiffReviewerProvider | None = None
         self.dock = None
         self.action = None
@@ -30,6 +35,7 @@ class OsmDiffReviewerPlugin:
         self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
         self.action = self.dock.toggleViewAction()
         self.action.setText(tr("Review panel"))
+        self.action.setIcon(QIcon(str(ICON)))
         self.iface.addPluginToMenu(MENU, self.action)
 
     def unload(self) -> None:
@@ -45,3 +51,5 @@ class OsmDiffReviewerPlugin:
         if self.provider is not None:
             QgsApplication.processingRegistry().removeProvider(self.provider)
             self.provider = None
+        remove_translator(self.translator)
+        self.translator = None

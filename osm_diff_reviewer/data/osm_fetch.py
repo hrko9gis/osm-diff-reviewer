@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from urllib.parse import urlsplit
 
+from ..i18n import tr
 from .http import HttpClient, HttpError
 
 OVERPASS_TIMEOUT_S = 25
@@ -17,7 +18,7 @@ class OverpassError(RuntimeError):
 def validate_endpoint(url: str) -> str:
     parts = urlsplit(url or "")
     if parts.scheme not in ("http", "https") or not parts.netloc:
-        raise OverpassError(f"Not an Overpass API URL: {url!r}")
+        raise OverpassError(tr("Not an Overpass API URL: {!r}").format(url))
     return url
 
 
@@ -38,16 +39,16 @@ def fetch_versions(
     try:
         response = http.post_form(validate_endpoint(endpoint), {"data": version_query(objects)})
     except HttpError as error:
-        raise OverpassError(f"Overpass API unreachable: {error}") from error
+        raise OverpassError(tr("Overpass API unreachable: {}").format(error)) from error
     if response.status != 200:
-        raise OverpassError(f"Overpass API answered {response.status}: {response.text[:200]}")
+        raise OverpassError(tr("Overpass API answered {}: {}").format(response.status, response.text[:200]))
     try:
         payload = json.loads(response.body)
         elements = payload["elements"]
     except (ValueError, KeyError, TypeError) as error:
-        raise OverpassError(f"Unexpected Overpass response: {response.text[:200]}") from error
+        raise OverpassError(tr("Unexpected Overpass response: {}").format(response.text[:200])) from error
     # Timeouts and memory limits still answer 200, with no elements and a remark.
     if payload.get("remark"):
-        raise OverpassError(f"Overpass API could not complete the query: {payload['remark']}")
+        raise OverpassError(tr("Overpass API could not complete the query: {}").format(payload["remark"]))
     found = {(e["type"], e["id"]): e.get("version") for e in elements if "type" in e and "id" in e}
     return {obj: found.get(obj) for obj in objects}

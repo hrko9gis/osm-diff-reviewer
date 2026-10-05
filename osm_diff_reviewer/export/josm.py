@@ -18,6 +18,7 @@ from ..core.profile import AttributeMapping
 from ..core.review import ReviewRow
 from ..data.http import HttpClient, HttpError, HttpResponse
 from ..data.license_gate import LicenseGateError, ReferenceSource, ensure_export_allowed, export_allowed
+from ..i18n import tr
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 METRES_PER_DEGREE = 111_320.0
@@ -41,9 +42,13 @@ def validate_base_url(url: str) -> str:
     """Scheme, loopback host and port only; anything else would break or redirect the commands."""
     parts = urlsplit(url or "")
     if parts.scheme not in ("http", "https") or parts.hostname not in LOOPBACK_HOSTS:
-        raise JosmError(f"JOSM Remote Control must be on this computer (127.0.0.1 or localhost), not {url!r}")
+        raise JosmError(
+            tr("JOSM Remote Control must be on this computer (127.0.0.1 or localhost), not {!r}").format(url)
+        )
     if parts.path not in ("", "/") or parts.query or parts.fragment:
-        raise JosmError(f"Give only the address and port of JOSM Remote Control, e.g. http://127.0.0.1:8111 (not {url!r})")
+        raise JosmError(
+            tr("Give only the address and port of JOSM Remote Control, e.g. http://127.0.0.1:8111 (not {!r})").format(url)
+        )
     host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
     port = f":{parts.port}" if parts.port else ""
     return f"{parts.scheme}://{host}{port}"
@@ -61,7 +66,7 @@ def _geometries(row: ReviewRow) -> list[QgsGeometry]:
 def candidate_bbox(row: ReviewRow, margin_m: float = DEFAULT_MARGIN_M) -> BBox:
     geometries = _geometries(row)
     if not geometries:
-        raise JosmError("The candidate has no geometry to open.")
+        raise JosmError(tr("The candidate has no geometry to open."))
     extent = QgsRectangle(geometries[0].boundingBox())
     for geometry in geometries[1:]:
         extent.combineExtentWith(geometry.boundingBox())
@@ -74,7 +79,7 @@ def candidate_bbox(row: ReviewRow, margin_m: float = DEFAULT_MARGIN_M) -> BBox:
         extent.yMaximum() + margin_lat,
     )
     if (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) > MAX_AREA_SQ_DEG:
-        raise JosmError("The candidate covers too large an area to download in JOSM.")
+        raise JosmError(tr("The candidate covers too large an area to download in JOSM."))
     return bbox
 
 
@@ -172,13 +177,17 @@ def reference_osm_xml(row: ReviewRow, mappings: Sequence[AttributeMapping]) -> s
     """OSM XML of the reference feature with the proposed tags (negative ids, never uploaded)."""
     geometry = QgsGeometry.fromWkt(row.ref_wkt) if row.ref_wkt else QgsGeometry()
     if geometry.isNull() or geometry.isEmpty():
-        raise JosmError("The reference feature has no geometry.")
+        raise JosmError(tr("The reference feature has no geometry."))
     tags = proposed_tags(row, mappings)
     xml = _OsmXml()
     if geometry.type() == Qgis.GeometryType.Point:
         points = geometry.asMultiPoint() if geometry.isMultipart() else [geometry.asPoint()]
         for point in points:
             xml.node(point.x(), point.y(), tags)
+    elif geometry.type() == Qgis.GeometryType.Line:
+        lines = geometry.asMultiPolyline() if geometry.isMultipart() else [geometry.asPolyline()]
+        for line in lines:
+            xml.way(line, tags)
     elif geometry.type() == Qgis.GeometryType.Polygon:
         polygons = geometry.asMultiPolygon() if geometry.isMultipart() else [geometry.asPolygon()]
         if len(polygons) == 1 and len(polygons[0]) == 1:
@@ -186,7 +195,7 @@ def reference_osm_xml(row: ReviewRow, mappings: Sequence[AttributeMapping]) -> s
         else:
             xml.multipolygon(polygons, tags)
     else:
-        raise JosmError("Only point and polygon reference features can be sent to JOSM.")
+        raise JosmError(tr("This kind of reference geometry cannot be sent to JOSM."))
     return xml.text()
 
 
@@ -200,11 +209,15 @@ class JosmClient:
             response = self.http.get(url)
         except HttpError as error:
             raise JosmNotRunning(
-                f"JOSM is not reachable at {self.base_url}. Start JOSM and enable Remote Control "
-                "(Preferences > Remote Control)."
+                tr(
+                    "JOSM is not reachable at {}. Start JOSM and enable Remote Control "
+                    "(Preferences > Remote Control)."
+                ).format(self.base_url)
             ) from error
         if response.status != 200:
-            raise JosmError(f"JOSM refused the request ({response.status}): {response.text.strip()[:300]}")
+            raise JosmError(
+                tr("JOSM refused the request ({}): {}").format(response.status, response.text.strip()[:300])
+            )
         return response
 
     def version(self) -> tuple[int, int]:
@@ -213,7 +226,7 @@ class JosmClient:
             protocol = json.loads(response.body)["protocolversion"]
             return int(protocol["major"]), int(protocol["minor"])
         except (ValueError, KeyError, TypeError) as error:
-            raise JosmError(f"Unexpected answer from {self.base_url}; is this JOSM?") from error
+            raise JosmError(tr("Unexpected answer from {}; is this JOSM?").format(self.base_url)) from error
 
     def open_candidate(
         self,
@@ -236,9 +249,9 @@ class JosmClient:
                 note = str(error)
             else:
                 xml = reference_osm_xml(row, mappings)
-                reference_url = load_data_url(self.base_url, xml, f"Reference: {row.ref_key}")
+                reference_url = load_data_url(self.base_url, xml, tr("Reference: {}").format(row.ref_key))
                 if len(reference_url) > MAX_URL_LENGTH:
-                    reference_url, note = None, "The reference feature is too large to send through Remote Control."
+                    reference_url, note = None, tr("The reference feature is too large to send through Remote Control.")
         attribution = source.attribution if export_allowed(source) else ""
         zoom_url = load_and_zoom_url(self.base_url, candidate_bbox(row), select_ids(row), attribution)
 

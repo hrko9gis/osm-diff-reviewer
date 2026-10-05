@@ -7,6 +7,8 @@ MapRoulette) must call ``ensure_export_allowed`` first.
 
 from dataclasses import dataclass
 
+from ..i18n import tr
+
 LICENSE_CONFIRMED = "confirmed"
 LICENSE_UNCONFIRMED = "unconfirmed"
 LICENSE_REJECTED = "rejected"
@@ -40,8 +42,10 @@ def ensure_export_allowed(source: ReferenceSource | None) -> None:
     if export_allowed(source):
         return
     if source is None:
-        raise LicenseGateError("No licence record for this reference source; record and confirm it first.")
+        raise LicenseGateError(tr("No licence record for this reference source; record and confirm it first."))
     raise LicenseGateError(
-        f"Licence of reference source '{source.name}' is {source.license_status}; "
-        "confirm that it may be used in OSM before exporting reference data."
+        tr(
+            "The licence of reference source '{}' is not confirmed; confirm that it may be used in OSM "
+            "before exporting reference data."
+        ).format(source.name)
     )

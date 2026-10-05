@@ -200,3 +200,16 @@ def test_unconfirmed_source_sends_no_attribution(qgis_app):
 
 def test_userinfo_is_dropped_from_base_url():
     assert josm.validate_base_url("http://evil.com@127.0.0.1:8111") == "http://127.0.0.1:8111"
+
+
+def test_reference_line_becomes_open_way(qgis_app):
+    root = ElementTree.fromstring(josm.reference_osm_xml(_missing_row(ref_wkt="LINESTRING(0 0, 1 0, 2 1)"), NAME))
+    (way,) = root.findall("way")
+    refs = [nd.get("ref") for nd in way.findall("nd")]
+    assert len(refs) == 3 and refs[0] != refs[-1]
+    assert {t.get("k"): t.get("v") for t in way.findall("tag")} == {"name": "東公園 & 広場"}
+
+
+def test_reference_multiline_becomes_one_way_per_part(qgis_app):
+    root = ElementTree.fromstring(josm.reference_osm_xml(_missing_row(ref_wkt="MULTILINESTRING((0 0, 1 0), (5 5, 6 5))"), NAME))
+    assert len(root.findall("way")) == 2

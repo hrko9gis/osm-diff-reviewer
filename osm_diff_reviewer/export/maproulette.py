@@ -23,6 +23,7 @@ from ..core.review import ReviewKey, ReviewRow
 from ..data.http import HttpClient, HttpError
 from ..data.license_gate import ReferenceSource, ensure_export_allowed
 from ..data.store import WorkspaceStore
+from ..i18n import tr
 
 PAGE_SIZE = 1000
 PROJECT_PAGE_SIZE = 50
@@ -33,7 +34,7 @@ _PLACEHOLDER = re.compile(r"(?<!\{)\{([^{}]+)\}(?!\})")  # {name}, but not musta
 
 # MapRoulette task status codes
 TASK_CREATED, TASK_FIXED, TASK_FALSE_POSITIVE, TASK_SKIPPED, TASK_DELETED, TASK_ALREADY_FIXED, TASK_TOO_HARD = range(7)
-_TASK_STATUS_LABELS = {
+_TASK_STATUS_NAMES = {
     TASK_CREATED: "created",
     TASK_FIXED: "fixed",
     TASK_FALSE_POSITIVE: "not an issue",
@@ -109,7 +110,7 @@ def render_template(template: str, properties: dict) -> str:
 def task_feature(row: ReviewRow, template: str) -> dict:
     geometry = QgsGeometry.fromWkt(row.ref_wkt or row.osm_wkt)
     if geometry.isNull() or geometry.isEmpty():
-        raise MapRouletteError(f"Candidate {task_key(row)} has no geometry.")
+        raise MapRouletteError(tr("Candidate {} has no geometry.").format(task_key(row)))
     properties: dict = {"odr_key": task_key(row), "classification": row.classification, "ref_key": row.ref_key or ""}
     if row.osm_type and row.osm_id:
         properties["@id"] = f"{row.osm_type}/{row.osm_id}"
@@ -142,7 +143,7 @@ def write_geojson(
     """Write the candidates as MapRoulette tasks; refused unless the licence is confirmed."""
     ensure_export_allowed(source)
     if not rows:
-        raise MapRouletteError("There are no candidates to export.")
+        raise MapRouletteError(tr("There are no candidates to export."))
     if line_by_line:
         text = line_by_line_geojson(rows, template)
     else:
@@ -157,11 +158,11 @@ class MapRouletteClient:
     def __init__(self, http: HttpClient, base_url: str, api_key: str) -> None:
         parts = urlsplit(base_url or "")
         if parts.scheme not in ("http", "https") or not parts.netloc:
-            raise MapRouletteError(f"Not a MapRoulette API URL: {base_url!r}")
+            raise MapRouletteError(tr("Not a MapRoulette API URL: {!r}").format(base_url))
         if parts.scheme != "https" and parts.hostname not in LOOPBACK_HOSTS:
-            raise MapRouletteError("Use https for MapRoulette; the API key must not be sent unencrypted.")
+            raise MapRouletteError(tr("Use https for MapRoulette; the API key must not be sent unencrypted."))
         if not api_key:
-            raise MapRouletteError("A MapRoulette API key is required.")
+            raise MapRouletteError(tr("A MapRoulette API key is required."))
         self.http = http
         self.base_url = base_url.rstrip("/")
         self._api_key = api_key
@@ -175,16 +176,16 @@ class MapRouletteClient:
         try:
             response = self.http.send(method, f"{self.base_url}{path}", body, headers)
         except HttpError as error:
-            raise MapRouletteError(f"MapRoulette unreachable: {error}") from error
+            raise MapRouletteError(tr("MapRoulette unreachable: {}").format(error)) from error
         try:
             data = json.loads(response.body) if response.body else None
         except ValueError:
             data = None
         if not 200 <= response.status < 300:  # creation answers 201 Created
             detail = data.get("message") if isinstance(data, dict) else response.text[:200]
-            raise MapRouletteError(f"MapRoulette answered {response.status}: {detail}")
+            raise MapRouletteError(tr("MapRoulette answered {}: {}").format(response.status, detail))
         if data is None:
-            raise MapRouletteError(f"Unexpected MapRoulette response: {response.text[:200]}")
+            raise MapRouletteError(tr("Unexpected MapRoulette response: {}").format(response.text[:200]))
         return data
 
     def managed_projects(self) -> list[tuple[int, str]]:
@@ -204,11 +205,11 @@ class MapRouletteClient:
         """Create the challenge with one task per candidate; refused unless the licence is confirmed."""
         ensure_export_allowed(source)
         if spec.project_id <= 0:
-            raise MapRouletteError("Choose a MapRoulette project.")
+            raise MapRouletteError(tr("Choose a MapRoulette project."))
         if not spec.name.strip() or not spec.instruction.strip():
-            raise MapRouletteError("A challenge needs a name and instructions.")
+            raise MapRouletteError(tr("A challenge needs a name and instructions."))
         if not rows:
-            raise MapRouletteError("There are no candidates to send.")
+            raise MapRouletteError(tr("There are no candidates to send."))
         payload = {
             "name": spec.name.strip(),
             "parent": spec.project_id,
@@ -220,7 +221,7 @@ class MapRouletteClient:
         }
         created = self._call("POST", "/challenge", payload)
         if not isinstance(created, dict) or "id" not in created:
-            raise MapRouletteError("MapRoulette did not return the new challenge id.")
+            raise MapRouletteError(tr("MapRoulette did not return the new challenge id."))
         return int(created["id"])
 
     def task_statuses(self, challenge_id: int) -> dict[str, tuple[int, int | None]]:
@@ -253,7 +254,7 @@ def create_challenge_for_rows(
 
 
 def _note(row: ReviewRow, task_id: int, status: int) -> str:
-    entry = f"MapRoulette task {task_id}: {_TASK_STATUS_LABELS.get(status, status)}"
+    entry = f"MapRoulette task {task_id}: {_TASK_STATUS_NAMES.get(status, status)}"
     return f"{row.note}\n{entry}" if row.note else entry
 
 

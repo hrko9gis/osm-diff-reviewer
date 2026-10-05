@@ -5,6 +5,9 @@ Uses the GDAL/OGR Python bindings shipped with QGIS. The dataset is opened per
 operation so that QGIS can read the same file in between.
 """
 
+# Annotations stay unevaluated: osgeo.ogr.DataSource only exists once osgeo.gdal is imported.
+from __future__ import annotations
+
 import json
 import threading
 from collections.abc import Iterator, Sequence
@@ -16,16 +19,13 @@ from pathlib import Path
 from osgeo import ogr, osr
 
 from ..core import review
+from ..i18n import tr
 from ..core.review import PriorReview, ReviewKey, ReviewRow
 from .license_gate import LICENSE_STATUSES, LICENSE_UNCONFIRMED, ReferenceSource
 
 # One workspace operation at a time across threads (GUI and QgsTask workers): SQLite writers
 # would otherwise hit "database is locked", and the OGR exception mode is process-wide.
 _LOCK = threading.RLock()
-
-# DataSource.Close() needs GDAL 3.8; QGIS 3.40 packages may ship an older GDAL.
-_HAS_CLOSE = hasattr(ogr.DataSource, "Close")
-
 
 @contextmanager
 def _ogr_exceptions() -> Iterator[None]:
@@ -40,8 +40,10 @@ def _ogr_exceptions() -> Iterator[None]:
 
 
 def _close(dataset: ogr.DataSource) -> None:
-    if _HAS_CLOSE:
-        dataset.Close()
+    """Close() needs GDAL 3.8; QGIS 3.40 packages may ship an older GDAL."""
+    close = getattr(dataset, "Close", None)
+    if close is not None:
+        close()
     else:
         dataset.FlushCache()  # released when the last reference goes away
 
@@ -203,11 +205,11 @@ class WorkspaceStore:
                 else:
                     dataset = ogr.GetDriverByName("GPKG").CreateDataSource(str(store.path))
             except RuntimeError as error:
-                raise StoreError(f"cannot create workspace {store.path}: {error}") from error
+                raise StoreError(tr("Cannot create workspace {}: {}").format(store.path, error)) from error
             try:
                 store._ensure_schema(dataset)
             except RuntimeError as error:
-                raise StoreError(f"cannot create workspace {store.path}: {error}") from error
+                raise StoreError(tr("Cannot create workspace {}: {}").format(store.path, error)) from error
             finally:
                 _close(dataset)
         return store
@@ -216,12 +218,12 @@ class WorkspaceStore:
     def open(cls, path: str | Path) -> "WorkspaceStore":
         store = cls(path)
         if not store.path.is_file():
-            raise StoreError(f"workspace not found: {store.path}")
+            raise StoreError(tr("Workspace not found: {}").format(store.path))
         with store._dataset() as dataset:
             missing = [name for name in _SCHEMA if dataset.GetLayerByName(name) is None]
             outdated = not missing and store._missing_columns(dataset)
         if missing:
-            raise StoreError(f"{store.path} is not a workspace (missing tables: {', '.join(missing)})")
+            raise StoreError(tr("{} is not a workspace (missing tables: {})").format(store.path, ", ".join(missing)))
         if outdated:
             try:
                 cls.create(path)  # adds the columns of newer plugin versions
@@ -260,13 +262,13 @@ class WorkspaceStore:
             try:
                 dataset = ogr.Open(str(self.path), update=1 if update else 0)
             except RuntimeError as error:
-                raise StoreError(f"cannot open workspace {self.path}: {error}") from error
+                raise StoreError(tr("Cannot open workspace {}: {}").format(self.path, error)) from error
             try:
                 yield dataset
             except StoreError:
                 raise
             except RuntimeError as error:
-                raise StoreError(f"workspace {self.path}: {error}") from error
+                raise StoreError(tr("Workspace {}: {}").format(self.path, error)) from error
             finally:
                 _close(dataset)
 
@@ -409,7 +411,7 @@ class WorkspaceStore:
         with self._dataset() as dataset:
             feature = dataset.GetLayerByName("runs").GetFeature(run_id)
             if feature is None:
-                raise StoreError(f"run {run_id} not found")
+                raise StoreError(tr("Run {} not found").format(run_id))
             values = _values(feature)
         return RunInfo(run_id, **{k: values[k] or "" for k in (
             "source_name", "started_at", "profile_json", "extent_wkt", "osm_fetched_at", "working_crs")})
@@ -508,7 +510,7 @@ class WorkspaceStore:
     def save_review(self, row: ReviewRow, status: str, note: str) -> None:
         """Record a decision against the current state of both sides; clears the recheck flag."""
         if status not in review.STATUSES:
-            raise StoreError(f"unknown review status: {status!r}")
+            raise StoreError(tr("Unknown review status: {!r}").format(status))
         key = row.key
         values = {
             **key._asdict(),

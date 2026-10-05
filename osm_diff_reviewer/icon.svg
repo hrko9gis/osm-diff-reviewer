@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Reference (orange) and OSM (blue) markers, as highlighted in the review panel, with a review check. -->
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="#f4f6f8" stroke="#c9d1d9" stroke-width="2"/>
+  <path d="M22 50 C22 50 9 35 9 25 a13 13 0 0 1 26 0 C35 35 22 50 22 50 Z" fill="#e67800"/>
+  <circle cx="22" cy="25" r="5" fill="#ffffff"/>
+  <path d="M42 54 C42 54 29 39 29 29 a13 13 0 0 1 26 0 C55 39 42 54 42 54 Z" fill="#1e6ee6" fill-opacity="0.92"/>
+  <path d="M35.5 29 l4.5 4.5 l8.5 -9" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

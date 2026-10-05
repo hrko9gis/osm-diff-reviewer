@@ -157,16 +157,22 @@ def test_unknown_license_status_in_file_reads_as_unconfirmed(store):
 def test_missing_run_error_is_not_double_wrapped(store):
     with pytest.raises(StoreError) as error:
         store.run(999)
-    assert str(error.value) == "run 999 not found"
+    assert str(error.value) == "Run 999 not found"
 
 
-def test_store_works_without_dataset_close(store, monkeypatch):
+def test_close_falls_back_to_flush_without_dataset_close():
     # GDAL < 3.8 has no DataSource.Close(); QGIS 3.40 may ship such a GDAL.
     from osm_diff_reviewer.data import store as store_module
 
-    monkeypatch.setattr(store_module, "_HAS_CLOSE", False)
-    store.record_run("src", "{}", [_record()])
-    assert store.latest_run_id("src") is not None
+    class OldDataset:
+        flushed = False
+
+        def FlushCache(self):  # noqa: N802 - GDAL API
+            self.flushed = True
+
+    dataset = OldDataset()
+    store_module._close(dataset)
+    assert dataset.flushed
 
 
 def test_mr_task_records(store):

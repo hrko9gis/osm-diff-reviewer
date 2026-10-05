@@ -4,15 +4,21 @@ qgisMinimumVersion=3.40
 qgisMaximumVersion=4.99
 supportsQt6=True
 description=Compare reference data with OpenStreetMap and review the differences as update candidates.
-about=Matches a reference layer (e.g. municipal open data) against OpenStreetMap data, classifies the differences (missing, geometry difference, attribute difference, ambiguous, OSM only) and keeps review decisions across runs. The plugin never edits OSM: candidates are handed over to JOSM or MapRoulette. Importing external data into OSM may fall under the OSM Import Guidelines; check the licence of your reference data and consult your local community first.
+about=Matches a reference layer (e.g. municipal open data) against OpenStreetMap data and classifies the differences: missing, geometry difference, attribute difference, ambiguous and OSM only. Points, lines and polygons are supported, and a version-diff mode compares two releases of the reference data and checks only what changed. Review decisions are kept in a GeoPackage and carried over when matching is run again; pairs that changed since a decision are flagged for recheck. The plugin never edits OSM: candidates are handed over to JOSM (Remote Control) or MapRoulette (GeoJSON or API). A licence record per reference source blocks any export of reference data until its use in OSM is confirmed. Importing external data into OSM may fall under the OSM Import Guidelines; consult your local community first. Japanese translation included.
 version=0.1.0
 author=QGIS Ninja
 email=hrko9gis@gmail.com
 repository=https://github.com/hrko9gis/osm-diff-reviewer
 tracker=https://github.com/hrko9gis/osm-diff-reviewer/issues
 homepage=https://github.com/hrko9gis/osm-diff-reviewer
-tags=openstreetmap,osm,conflation,josm,maproulette,quality assurance
+tags=openstreetmap,osm,conflation,josm,maproulette,quality assurance,open data,review
 category=Vector
+icon=icon.png
 experimental=True
 hasProcessingProvider=yes
-changelog=0.1.0 - Matching of points and polygons as a Processing algorithm.
+changelog=0.1.0
+    - Matching of points, lines and polygons with OSM as Processing algorithms (matching and reference version diff)
+    - Review panel with filters, map highlight, status and notes; decisions kept in a GeoPackage and carried over between runs
+    - Hand-over to JOSM Remote Control and to MapRoulette (GeoJSON, challenge creation, progress sync)
+    - Licence record and export gate per reference source
+    - Japanese translation
