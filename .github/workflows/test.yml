@@ -10,8 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Minimum supported LTR (Qt5) and the current release line (QGIS 4 / Qt6).
-        qgis_image: ["qgis/qgis:release-3_40", "qgis/qgis:latest"]
+        # Minimum supported LTR on Ubuntu 22.04 (Qt5, GDAL 3.4, Python 3.10) and the current release (QGIS 4 / Qt6).
+        qgis_image: ["qgis/qgis:3.40-jammy", "qgis/qgis:latest"]
     container:
       image: ${{ matrix.qgis_image }}
     env:

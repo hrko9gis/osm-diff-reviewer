@@ -10,10 +10,10 @@ def test_get_returns_status_body_and_identifies_plugin(qgis_app):
     with FakeJosm() as server:
         response = QgisHttpClient().get(f"{server.url}/version")
     assert response.status == 200 and b"protocolversion" in response.body
-    headers = server.requests[0][2]
+    headers = {name.lower(): value for name, value in server.requests[0][2].items()}  # names are case-insensitive
     # QGIS replaces User-Agent with its own; the plugin identifies itself through Referer.
-    assert "QGIS" in headers["User-Agent"]
-    assert headers["Referer"] == REPOSITORY_URL
+    assert "QGIS" in headers["user-agent"]
+    assert headers["referer"] == REPOSITORY_URL
 
 
 def test_post_form_sends_fields(qgis_app):
